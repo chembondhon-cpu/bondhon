@@ -5,7 +5,7 @@ import {
   MapPin, Camera, Eye, EyeOff, Loader2, Home, MessageSquare, Lightbulb, 
   Target, X, Clock, Map, Bookmark, Calendar, CheckCircle, CalendarDays,
   BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown,
-  ShieldCheck, ArrowRight, Building2, Copy, Check
+  ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from './lib/supabase';
@@ -225,6 +225,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'events' | 'saved' | 'admin'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [filterUniversity, setFilterUniversity] = useState<string>('All');
+  const [filterBatch, setFilterBatch] = useState<string>('All');
   const [adminEmailToAdd, setAdminEmailToAdd] = useState('');
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
   const [exportBatch, setExportBatch] = useState<string>('');
@@ -243,6 +245,7 @@ export default function App() {
   // Post Form State
   const [postContent, setPostContent] = useState('');
   const [postType, setPostType] = useState<PostType>('General');
+  const [postFilter, setPostFilter] = useState<'All' | PostType>('All');
   const [jobLink, setJobLink] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
   const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
@@ -264,17 +267,57 @@ export default function App() {
   const [formData, setFormData] = useState<Partial<Profile>>(INITIAL_FORM_DATA);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason && event.reason.message && (
+        event.reason.message.includes('Refresh Token Not Found') || 
+        event.reason.message.includes('Invalid Refresh Token')
+      )) {
+        console.warn('Caught invalid refresh token error, signing out...');
+        supabase.auth.signOut();
+      }
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      if (event.message && (
+        event.message.includes('Refresh Token Not Found') || 
+        event.message.includes('Invalid Refresh Token')
+      )) {
+        console.warn('Caught invalid refresh token error, signing out...');
+        supabase.auth.signOut();
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('error', handleError);
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Session error:', error.message);
+        if (error.message.includes('Refresh Token Not Found') || error.message.includes('Invalid Refresh Token')) {
+          supabase.auth.signOut();
+        }
+      }
       setCurrentUser(session?.user ?? null);
+      setIsLoading(false);
+    }).catch((err) => {
+      console.error('Unexpected session error:', err);
       setIsLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      } else {
+        setCurrentUser(session?.user ?? null);
+      }
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('error', handleError);
+    };
   }, []);
 
   useEffect(() => {
@@ -293,6 +336,36 @@ export default function App() {
     // Reset form data to initial state first to avoid showing previous user's info
     setFormData(INITIAL_FORM_DATA);
 
+    const cachedMyProfile = localStorage.getItem(`chem_my_profile_${currentUser.id}`);
+    if (cachedMyProfile) {
+      try {
+        const data = JSON.parse(cachedMyProfile);
+        setFormData({
+          name: data.name,
+          avatar_url: data.avatar_url,
+          batch: data.batch,
+          chemistry_batch: data.chemistry_batch,
+          student_id: data.student_id,
+          department: data.department || '',
+          university: data.university || '',
+          current_status: (data.current_status as CurrentStatus) || '',
+          job_title: data.job_title,
+          institute_name: data.institute_name,
+          location: data.location,
+          permanent_address: data.permanent_address,
+          bio: data.bio,
+          phone: data.phone,
+          is_phone_private: data.is_phone_private ?? false,
+          email: data.email,
+          social_links: data.social_links || {},
+          is_public: data.is_public ?? true,
+          verification_status: data.verification_status || 'none'
+        });
+      } catch (e) {
+        console.error('Failed to parse cached my profile', e);
+      }
+    }
+
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -300,6 +373,7 @@ export default function App() {
       .single();
 
     if (data) {
+      localStorage.setItem(`chem_my_profile_${currentUser.id}`, JSON.stringify(data));
       setFormData({
         name: data.name,
         avatar_url: data.avatar_url,
@@ -335,6 +409,15 @@ export default function App() {
   };
 
   const fetchProfiles = async () => {
+    const cachedProfiles = localStorage.getItem('chem_profiles');
+    if (cachedProfiles) {
+      try {
+        setProfiles(JSON.parse(cachedProfiles));
+      } catch (e) {
+        console.error('Failed to parse cached profiles', e);
+      }
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -349,10 +432,20 @@ export default function App() {
     } else if (data) {
       setDbError('');
       setProfiles(data as Profile[]);
+      localStorage.setItem('chem_profiles', JSON.stringify(data));
     }
   };
 
   const fetchEvents = async () => {
+    const cachedEvents = localStorage.getItem('chem_events');
+    if (cachedEvents) {
+      try {
+        setEvents(JSON.parse(cachedEvents));
+      } catch (e) {
+        console.error('Failed to parse cached events', e);
+      }
+    }
+
     const { data, error } = await supabase
       .from('events')
       .select('*, profiles(*), rsvps:event_rsvps(count), user_rsvp:event_rsvps(status)')
@@ -360,22 +453,44 @@ export default function App() {
 
     if (!error && data) {
       setEvents(data as AppEvent[]);
+      localStorage.setItem('chem_events', JSON.stringify(data));
     }
   };
 
   const fetchBookmarks = async () => {
     if (!currentUser) return;
+
+    const cachedBookmarks = localStorage.getItem(`chem_bookmarks_${currentUser.id}`);
+    if (cachedBookmarks) {
+      try {
+        setBookmarks(new Set(JSON.parse(cachedBookmarks)));
+      } catch (e) {
+        console.error('Failed to parse cached bookmarks', e);
+      }
+    }
+
     const { data, error } = await supabase
       .from('bookmarks')
       .select('profile_id')
       .eq('user_id', currentUser.id);
 
     if (!error && data) {
-      setBookmarks(new Set(data.map(b => b.profile_id)));
+      const bookmarkIds = data.map(b => b.profile_id);
+      setBookmarks(new Set(bookmarkIds));
+      localStorage.setItem(`chem_bookmarks_${currentUser.id}`, JSON.stringify(bookmarkIds));
     }
   };
 
   const fetchPosts = async () => {
+    const cachedPosts = localStorage.getItem('chem_posts');
+    if (cachedPosts) {
+      try {
+        setPosts(JSON.parse(cachedPosts));
+      } catch (e) {
+        console.error('Failed to parse cached posts', e);
+      }
+    }
+
     // Lazy delete expired job posts
     const now = new Date().toISOString();
     await supabase
@@ -392,6 +507,7 @@ export default function App() {
 
     if (!error && data) {
       setPosts(data as Post[]);
+      localStorage.setItem('chem_posts', JSON.stringify(data));
     }
   };
 
@@ -506,13 +622,16 @@ export default function App() {
         matchesStatus = profile.chemistry_batch === formData.chemistry_batch && profile.id !== currentUser?.id;
       }
 
-      return matchesSearch && matchesStatus;
+      const matchesUniversity = filterUniversity === 'All' || profile.university === filterUniversity;
+      const matchesBatch = filterBatch === 'All' || profile.chemistry_batch === filterBatch;
+
+      return matchesSearch && matchesStatus && matchesUniversity && matchesBatch;
     }).sort((a, b) => {
       const batchA = parseInt(a.chemistry_batch || '999');
       const batchB = parseInt(b.chemistry_batch || '999');
       return batchA - batchB;
     });
-  }, [profiles, searchQuery, filterStatus, formData.chemistry_batch, currentUser?.id]);
+  }, [profiles, searchQuery, filterStatus, filterUniversity, filterBatch, formData.chemistry_batch, currentUser?.id]);
 
   const groupedProfiles = useMemo(() => {
     const groups: { [key: string]: Profile[] } = {};
@@ -877,6 +996,7 @@ export default function App() {
 
   const uniqueBatches = Array.from(new Set(profiles.map(p => p.batch).filter(Boolean))).sort();
   const uniqueChemistryBatches = Array.from(new Set(profiles.map(p => p.chemistry_batch).filter(Boolean))).sort();
+  const uniqueUniversities = Array.from(new Set(profiles.map(p => p.university).filter(Boolean))).sort();
 
   const getPostTypeIcon = (type: PostType) => {
     switch (type) {
@@ -1253,7 +1373,7 @@ create policy "Anyone can update their document." on storage.objects for update 
             >
             
             {/* Create Post Box */}
-            <div className="glass-card rounded-3xl p-6 premium-shadow">
+            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow">
               <form onSubmit={handleCreatePost}>
                 <div className="flex items-start space-x-4">
                   <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white shadow-lg shadow-teal-100 shrink-0">
@@ -1334,13 +1454,40 @@ create policy "Anyone can update their document." on storage.objects for update 
               </form>
             </div>
 
+            {/* Post Filters */}
+            <div className="flex overflow-x-auto hide-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 gap-2">
+              <button
+                onClick={() => setPostFilter('All')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
+                  postFilter === 'All' 
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
+                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                }`}
+              >
+                All Posts
+              </button>
+              {POST_TYPES.map(type => (
+                <button
+                  key={type}
+                  onClick={() => setPostFilter(type)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
+                    postFilter === type 
+                      ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
+                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
             {/* Posts Feed */}
             <div className="space-y-6">
-              {posts.map(post => {
+              {posts.filter(post => postFilter === 'All' || post.post_type === postFilter).map(post => {
                 const author = post.profiles || profiles.find(p => p.id === post.author_id);
                 return (
-                  <div key={post.id} className="glass-card rounded-3xl premium-shadow overflow-hidden group hover:border-teal-100/50 transition-all duration-500">
-                    <div className="p-6">
+                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow overflow-hidden group hover:border-teal-100/50 transition-all duration-500">
+                    <div className="p-4 sm:p-6">
                       <div className="flex items-start justify-between mb-6">
                         <div className="flex items-center space-x-4 cursor-pointer" onClick={() => author && setSelectedProfile(author)}>
                           {author?.avatar_url ? (
@@ -1449,33 +1596,64 @@ create policy "Anyone can update their document." on storage.objects for update 
               exit={{ opacity: 0, x: 20 }} 
               transition={{ duration: 0.3 }}
             >
-            <div className="glass-card p-6 rounded-3xl premium-shadow mb-10 flex flex-col lg:flex-row gap-6 items-center">
-              <div className="relative flex-1 w-full">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-slate-400" />
+            <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl premium-shadow mb-8 sm:mb-10 flex flex-col gap-4 sm:gap-6">
+              <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 items-center w-full">
+                <div className="relative flex-1 w-full">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by name, batch, location, company..."
+                    className="block w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
-                <input
-                  type="text"
-                  placeholder="Search by name, batch, location, company..."
-                  className="block w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all text-sm font-medium"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+                <div className="flex space-x-2 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar w-full lg:w-auto">
+                  {(['All', 'Classmates', ...STATUS_OPTIONS] as const).map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => setFilterStatus(status as any)}
+                      className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
+                        filterStatus === status 
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
+                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
+                      }`}
+                    >
+                      {status === 'Classmates' ? 'Your Classmates' : status}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex space-x-2 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar w-full lg:w-auto">
-                {(['All', 'Classmates', ...STATUS_OPTIONS] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setFilterStatus(status as any)}
-                    className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
-                      filterStatus === status 
-                        ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
-                    }`}
+              
+              <div className="flex flex-col sm:flex-row gap-4 w-full pt-4 border-t border-slate-100">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Filter by University</label>
+                  <select
+                    value={filterUniversity}
+                    onChange={(e) => setFilterUniversity(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all text-slate-700 font-medium"
                   >
-                    {status === 'Classmates' ? 'Your Classmates' : status}
-                  </button>
-                ))}
+                    <option value="All">All Universities</option>
+                    {uniqueUniversities.map(uni => (
+                      <option key={uni} value={uni}>{uni}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Filter by Batch</label>
+                  <select
+                    value={filterBatch}
+                    onChange={(e) => setFilterBatch(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all text-slate-700 font-medium"
+                  >
+                    <option value="All">All Batches</option>
+                    {uniqueChemistryBatches.map(batch => (
+                      <option key={batch} value={batch}>Batch {batch}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1499,7 +1677,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.4, delay: idx * 0.05 }}
                           key={profile.id}
-                          className="glass-card rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-200/50 transition-all duration-500 flex flex-col cursor-pointer"
+                          className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-200/50 transition-all duration-500 flex flex-col cursor-pointer"
                           onClick={() => setSelectedProfile(profile)}
                         >
                           <div className="h-28 bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-800 relative overflow-hidden">
@@ -1532,19 +1710,60 @@ create policy "Anyone can update their document." on storage.objects for update 
                               <div className="mt-1.5 text-sm text-slate-600 font-semibold line-clamp-2 min-h-[2.5rem]">
                                 {profile.job_title} {profile.job_title && profile.institute_name && ' at '} {profile.institute_name}
                               </div>
-                              <div className="mt-4 flex flex-wrap items-center gap-3">
-                                {profile.location && (
-                                  <span className="flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
-                                    <MapPin size={12} className="mr-1 text-teal-500"/> {profile.location}
+                              
+                              <div className="mt-4 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {profile.location && (
+                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                      <MapPin size={10} className="mr-1 text-teal-500"/> {profile.location}
+                                    </span>
+                                  )}
+                                  <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                    <GraduationCap size={10} className="mr-1 text-teal-500"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
                                   </span>
+                                  {profile.student_id && (
+                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                      <Hash size={10} className="mr-1 text-teal-500"/> ID: {profile.student_id}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div className="text-xs text-slate-500 space-y-1 mt-3">
+                                  {profile.department && profile.university && (
+                                    <div className="flex items-start gap-2">
+                                      <BookOpen size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                                      <span>{profile.department}, {profile.university}</span>
+                                    </div>
+                                  )}
+                                  {profile.email && (
+                                    <div className="flex items-center gap-2">
+                                      <Mail size={14} className="text-slate-400 shrink-0" />
+                                      <span className="truncate">{profile.email}</span>
+                                    </div>
+                                  )}
+                                  {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                                    <div className="flex items-center gap-2">
+                                      <Phone size={14} className="text-slate-400 shrink-0" />
+                                      <span>{profile.phone}</span>
+                                    </div>
+                                  )}
+                                  {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
+                                    <div className="flex items-center gap-2">
+                                      <Phone size={14} className="text-slate-400 shrink-0" />
+                                      <span className="italic text-slate-400">Private</span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {profile.bio && (
+                                  <div className="mt-3 text-xs text-slate-600 italic line-clamp-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                    "{profile.bio}"
+                                  </div>
                                 )}
-                                <span className="flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">
-                                  <GraduationCap size={12} className="mr-1 text-teal-500"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
-                                </span>
                               </div>
                             </div>
                             <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-teal-600 font-bold text-sm group-hover:translate-x-1 transition-transform">View Profile</span>
+                              <span className="text-teal-600 font-bold text-sm group-hover:translate-x-1 transition-transform">View Full Profile</span>
                               <div className="h-8 w-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all">
                                 <ArrowRight size={16} />
                               </div>
@@ -1571,7 +1790,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               className="max-w-4xl mx-auto"
             >
             {!isEditingProfile ? (
-              <div className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden">
+              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden">
                 <div className="h-48 bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-900 relative">
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
                   <div className="absolute -bottom-16 left-10 group">
@@ -1587,7 +1806,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 
                 <div className="pt-20 px-10 pb-10">
                   {/* Verification Status Banner (View Mode) */}
-                  <div className="mb-10 bg-gradient-to-br from-slate-50 to-white p-6 rounded-3xl border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-inner">
+                  <div className="mb-10 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 shadow-inner">
                     <div className="flex items-center space-x-5">
                       <div className={`p-4 rounded-2xl shadow-sm ${
                         (formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com') ? 'bg-amber-50 text-amber-600 border border-amber-100' :
@@ -1659,7 +1878,7 @@ create policy "Anyone can update their document." on storage.objects for update 
 
                   <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-10">
                     <div className="space-y-8">
-                      <div className="glass-card p-6 rounded-3xl border-slate-100 shadow-sm">
+                      <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-slate-100 shadow-sm">
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Academic Background</h3>
                         <div className="space-y-5">
                           <div className="flex items-center group">
@@ -1696,7 +1915,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         </div>
                       </div>
 
-                      <div className="glass-card p-6 rounded-3xl border-slate-100 shadow-sm">
+                      <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-slate-100 shadow-sm">
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Professional Status</h3>
                         <div className="space-y-5">
                           <div className="flex items-center group">
@@ -1724,14 +1943,14 @@ create policy "Anyone can update their document." on storage.objects for update 
                     </div>
 
                     <div className="space-y-8">
-                      <div className="glass-card p-6 rounded-3xl border-slate-100 shadow-sm">
+                      <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-slate-100 shadow-sm">
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">About Me</h3>
                         <p className="text-slate-700 leading-relaxed font-medium">
                           {formData.bio || "No bio provided yet. Add a short description about yourself to help others know you better."}
                         </p>
                       </div>
 
-                      <div className="glass-card p-6 rounded-3xl border-slate-100 shadow-sm">
+                      <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl border-slate-100 shadow-sm">
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Contact & Social</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {formData.email && (
@@ -2035,7 +2254,7 @@ create policy "Anyone can update their document." on storage.objects for update 
 
             {showEventForm && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mb-12 overflow-hidden">
-                <div className="glass-card p-8 rounded-[2.5rem] border-slate-100 premium-shadow">
+                <div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] border-slate-100 premium-shadow">
                   <h3 className="text-2xl font-black text-slate-900 mb-8 tracking-tight">Event Details</h3>
                   <form onSubmit={handleCreateEvent} className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-6">
@@ -2126,9 +2345,9 @@ create policy "Anyone can update their document." on storage.objects for update 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     whileHover={{ y: -5 }}
-                    className="glass-card rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group"
+                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group"
                   >
-                    <div className="p-8 flex-grow">
+                    <div className="p-5 sm:p-8 flex-grow">
                       <div className="flex justify-between items-start mb-6">
                         <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-teal-50 text-teal-700 border border-teal-100">
                           {event.event_type}
@@ -2169,7 +2388,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       )}
                     </div>
                     
-                    <div className="bg-gradient-to-br from-slate-50/80 to-white p-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="bg-gradient-to-br from-slate-50/80 to-white p-4 sm:p-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                       <div className="flex items-center space-x-3">
                         <div className="relative">
                           {event.profiles?.avatar_url ? (
@@ -2250,10 +2469,10 @@ create policy "Anyone can update their document." on storage.objects for update 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   whileHover={{ y: -8 }}
-                  className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100"
+                  className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100"
                   onClick={() => setSelectedProfile(profile)}
                 >
-                  <div className="p-8 flex flex-col items-center text-center relative">
+                  <div className="p-5 sm:p-8 flex flex-col items-center text-center relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
                       className="absolute top-6 right-6 p-2 bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm"
@@ -2280,21 +2499,59 @@ create policy "Anyone can update their document." on storage.objects for update 
                     <p className="text-sm text-teal-700 font-bold mb-1 line-clamp-1 bg-teal-50 px-3 py-1 rounded-lg">
                       {profile.job_title || profile.current_status}
                     </p>
-                    <p className="text-xs text-slate-400 font-bold line-clamp-1 uppercase tracking-widest">
+                    <p className="text-xs text-slate-400 font-bold line-clamp-1 uppercase tracking-widest mb-4">
                       {profile.institute_name || profile.university}
                     </p>
+                    
+                    <div className="w-full text-left space-y-2 text-xs text-slate-500">
+                      <div className="flex flex-wrap justify-center gap-2 mb-3">
+                        {profile.location && (
+                          <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                            <MapPin size={10} className="mr-1 text-teal-500"/> {profile.location}
+                          </span>
+                        )}
+                        <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                          <GraduationCap size={10} className="mr-1 text-teal-500"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
+                        </span>
+                      </div>
+                      
+                      {profile.department && profile.university && (
+                        <div className="flex items-start gap-2">
+                          <BookOpen size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                          <span>{profile.department}, {profile.university}</span>
+                        </div>
+                      )}
+                      {profile.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail size={14} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{profile.email}</span>
+                        </div>
+                      )}
+                      {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                        <div className="flex items-center gap-2">
+                          <Phone size={14} className="text-slate-400 shrink-0" />
+                          <span>{profile.phone}</span>
+                        </div>
+                      )}
+                      {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
+                        <div className="flex items-center gap-2">
+                          <Phone size={14} className="text-slate-400 shrink-0" />
+                          <span className="italic text-slate-400">Private</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="px-8 pb-8">
                     <button className="w-full py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-teal-600 transition-all premium-button">
-                      View Profile
+                      View Full Profile
                     </button>
                   </div>
                 </motion.div>
               ))}
               
               {profiles.filter(p => bookmarks.has(p.id)).length === 0 && (
-                <div className="col-span-full text-center py-20 glass-card rounded-[3rem] border-dashed border-2 border-slate-200">
+                <div className="col-span-full text-center py-12 sm:py-20 glass-card rounded-2xl sm:rounded-[3rem] border-dashed border-2 border-slate-200">
                   <div className="h-20 w-20 bg-slate-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
                     <Bookmark className="h-10 w-10 text-slate-300" />
                   </div>
@@ -2358,7 +2615,7 @@ create policy "Anyone can update their document." on storage.objects for update 
 
             {/* Analytics Dashboard */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-8 rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-6">
+              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6">
                 <div className="p-4 bg-teal-50 text-teal-600 rounded-2xl shadow-sm">
                   <Users size={32} />
                 </div>
@@ -2367,7 +2624,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.length}</h3>
                 </div>
               </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-8 rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-6">
+              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6">
                 <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm">
                   <MessageSquare size={32} />
                 </div>
@@ -2376,7 +2633,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
                 </div>
               </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-8 rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-6">
+              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6">
                 <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm">
                   <Calendar size={32} />
                 </div>
@@ -2388,7 +2645,7 @@ create policy "Anyone can update their document." on storage.objects for update 
             </div>
 
             {/* Verification Requests */}
-            <div className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden mt-12 border-slate-100">
+            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100">
               <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-100">
@@ -2470,7 +2727,7 @@ create policy "Anyone can update their document." on storage.objects for update 
             </div>
 
             {/* User Management Table */}
-            <div className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden mt-12 border-slate-100">
+            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100">
               <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30">
                 <h3 className="text-xl font-black text-slate-900 tracking-tight">Community Directory Management</h3>
               </div>
@@ -2511,7 +2768,7 @@ create policy "Anyone can update their document." on storage.objects for update 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12">
               {/* Add Admin */}
-              <div className="glass-card p-10 rounded-[3rem] premium-shadow border-slate-100">
+              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100">
                 <div className="flex items-center space-x-4 mb-8">
                   <div className="p-3 bg-slate-900 text-white rounded-2xl">
                     <ShieldCheck size={24} />
@@ -2538,14 +2795,14 @@ create policy "Anyone can update their document." on storage.objects for update 
               </div>
 
               {/* Bulk Upload Info */}
-              <div className="glass-card p-10 rounded-[3rem] premium-shadow border-slate-100 flex flex-col">
+              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 flex flex-col">
                 <div className="flex items-center space-x-4 mb-8">
                   <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl">
                     <Database size={24} />
                   </div>
                   <h3 className="text-2xl font-black text-slate-900 tracking-tight">Bulk Operations</h3>
                 </div>
-                <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 text-sm text-slate-600 space-y-4 flex-grow">
+                <div className="bg-slate-50/50 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 text-sm text-slate-600 space-y-4 flex-grow">
                   <p className="font-bold">To bulk upload members, use the Supabase Infrastructure:</p>
                   <ul className="space-y-3">
                     <li className="flex items-start">
@@ -2715,7 +2972,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           </div>
                           <h3 className="text-xl font-black text-slate-900 tracking-tight">Professional Bio</h3>
                         </div>
-                        <div className="text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-8 rounded-[2rem] border border-slate-100 font-medium italic text-lg">
+                        <div className="text-slate-600 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] border border-slate-100 font-medium italic text-base sm:text-lg">
                           "{selectedProfile.bio}"
                         </div>
                       </section>
@@ -2728,7 +2985,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         </div>
                         <h3 className="text-xl font-black text-slate-900 tracking-tight">Career & Status</h3>
                       </div>
-                      <div className="glass-card border border-slate-100 rounded-[2.5rem] p-8 space-y-6 shadow-sm">
+                      <div className="glass-card border border-slate-100 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 space-y-4 sm:space-y-6 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Status</div>
                           <div className="text-sm font-black">
@@ -2755,7 +3012,7 @@ create policy "Anyone can update their document." on storage.objects for update 
 
                   {/* Right Column (Sidebar Info) */}
                   <div className="space-y-8">
-                    <section className="bg-slate-50/50 rounded-[2.5rem] p-8 border border-slate-100">
+                    <section className="bg-slate-50/50 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 border border-slate-100">
                       <h3 className="text-[10px] font-black text-slate-400 mb-8 uppercase tracking-widest">Academic & Location</h3>
                       <div className="space-y-8">
                         <div className="flex items-start space-x-4">
@@ -2799,7 +3056,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     </section>
 
                     {(selectedProfile.social_links?.facebook || selectedProfile.social_links?.linkedin) && (
-                      <section className="bg-slate-900 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200">
+                      <section className="bg-slate-900 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200">
                         <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">Digital Presence</h3>
                         <div className="flex gap-4">
                           {selectedProfile.social_links.facebook && (
@@ -2836,7 +3093,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
+              className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full shadow-2xl"
             >
               <h3 className="text-xl font-bold text-slate-900 mb-2">Delete User</h3>
               <p className="text-slate-600 mb-6">Are you sure you want to delete <strong>{userToDelete.name}</strong>? This action cannot be undone.</p>
@@ -2860,7 +3117,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
+              className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full shadow-2xl"
             >
               <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Post</h3>
               <p className="text-slate-600 mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
@@ -2884,7 +3141,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-xl p-6 max-w-2xl w-full shadow-2xl"
+              className="bg-white rounded-xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl"
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-slate-900">Edit Post</h3>
