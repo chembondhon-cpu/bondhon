@@ -225,7 +225,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'events' | 'saved' | 'admin'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
-  const [filterUniversity, setFilterUniversity] = useState<string>('All');
   const [filterBatch, setFilterBatch] = useState<string>('All');
   const [adminEmailToAdd, setAdminEmailToAdd] = useState('');
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
@@ -622,16 +621,15 @@ export default function App() {
         matchesStatus = profile.chemistry_batch === formData.chemistry_batch && profile.id !== currentUser?.id;
       }
 
-      const matchesUniversity = filterUniversity === 'All' || profile.university === filterUniversity;
       const matchesBatch = filterBatch === 'All' || profile.chemistry_batch === filterBatch;
 
-      return matchesSearch && matchesStatus && matchesUniversity && matchesBatch;
+      return matchesSearch && matchesStatus && matchesBatch;
     }).sort((a, b) => {
       const batchA = parseInt(a.chemistry_batch || '999');
       const batchB = parseInt(b.chemistry_batch || '999');
       return batchA - batchB;
     });
-  }, [profiles, searchQuery, filterStatus, filterUniversity, filterBatch, formData.chemistry_batch, currentUser?.id]);
+  }, [profiles, searchQuery, filterStatus, filterBatch, formData.chemistry_batch, currentUser?.id]);
 
   const groupedProfiles = useMemo(() => {
     const groups: { [key: string]: Profile[] } = {};
@@ -996,7 +994,6 @@ export default function App() {
 
   const uniqueBatches = Array.from(new Set(profiles.map(p => p.batch).filter(Boolean))).sort();
   const uniqueChemistryBatches = Array.from(new Set(profiles.map(p => p.chemistry_batch).filter(Boolean))).sort();
-  const uniqueUniversities = Array.from(new Set(profiles.map(p => p.university).filter(Boolean))).sort();
 
   const getPostTypeIcon = (type: PostType) => {
     switch (type) {
@@ -1628,19 +1625,6 @@ create policy "Anyone can update their document." on storage.objects for update 
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4 w-full pt-4 border-t border-slate-100">
-                <div className="flex-1">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Filter by University</label>
-                  <select
-                    value={filterUniversity}
-                    onChange={(e) => setFilterUniversity(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all text-slate-700 font-medium"
-                  >
-                    <option value="All">All Universities</option>
-                    {uniqueUniversities.map(uni => (
-                      <option key={uni} value={uni}>{uni}</option>
-                    ))}
-                  </select>
-                </div>
                 <div className="flex-1">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Filter by Batch</label>
                   <select
