@@ -23,6 +23,7 @@ interface Profile {
   avatar_url?: string;
   batch: string;
   chemistry_batch?: string;
+  student_id?: string;
   department: string;
   university: string;
   current_status: CurrentStatus;
@@ -32,6 +33,7 @@ interface Profile {
   permanent_address?: string;
   bio?: string;
   phone?: string;
+  is_phone_private?: boolean;
   email?: string;
   social_links: {
     facebook?: string;
@@ -80,11 +82,13 @@ const INITIAL_FORM_DATA: Partial<Profile> = {
   university: '',
   current_status: '',
   is_public: true,
+  is_phone_private: false,
   social_links: {},
   name: '',
   email: '',
   batch: '',
   chemistry_batch: '',
+  student_id: '',
   avatar_url: '',
   bio: '',
   phone: '',
@@ -301,6 +305,7 @@ export default function App() {
         avatar_url: data.avatar_url,
         batch: data.batch,
         chemistry_batch: data.chemistry_batch,
+        student_id: data.student_id,
         department: data.department || '',
         university: data.university || '',
         current_status: (data.current_status as CurrentStatus) || '',
@@ -310,6 +315,7 @@ export default function App() {
         permanent_address: data.permanent_address,
         bio: data.bio,
         phone: data.phone,
+        is_phone_private: data.is_phone_private ?? false,
         email: data.email,
         social_links: data.social_links || {},
         is_public: data.is_public ?? true,
@@ -560,6 +566,7 @@ export default function App() {
       avatar_url: formData.avatar_url,
       batch: formData.batch || '',
       chemistry_batch: formData.chemistry_batch,
+      student_id: formData.student_id,
       department: formData.department || '',
       university: formData.university || '',
       current_status: formData.current_status || '',
@@ -569,6 +576,7 @@ export default function App() {
       permanent_address: formData.permanent_address,
       bio: formData.bio,
       phone: formData.phone,
+      is_phone_private: formData.is_phone_private ?? false,
       email: formData.email,
       social_links: formData.social_links || {},
       is_public: formData.is_public ?? true
@@ -1139,6 +1147,7 @@ create table if not exists profiles (
   avatar_url text,
   batch text,
   chemistry_batch text,
+  student_id text,
   department text default 'Chemistry',
   university text default 'University of Rajshahi',
   current_status text,
@@ -1148,6 +1157,7 @@ create table if not exists profiles (
   permanent_address text,
   bio text,
   phone text,
+  is_phone_private boolean default false,
   email text,
   social_links jsonb default '{}'::jsonb,
   is_public boolean default true,
@@ -1156,7 +1166,9 @@ create table if not exists profiles (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Run this to add verification_status if profile table exists:
+-- Run this to add new columns if profile table exists:
+-- alter table profiles add column if not exists student_id text;
+-- alter table profiles add column if not exists is_phone_private boolean default false;
 -- alter table profiles add column if not exists verification_status text default 'none';
 
 create table if not exists posts (
@@ -1670,6 +1682,17 @@ create policy "Anyone can update their document." on storage.objects for update 
                               </div>
                             </div>
                           )}
+                          {formData.student_id && (
+                            <div className="flex items-center group">
+                              <div className="h-10 w-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mr-4 group-hover:bg-teal-600 group-hover:text-white transition-all">
+                                <BadgeCheck size={20} />
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Student ID</p>
+                                <p className="text-slate-900 font-bold">{formData.student_id}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1722,6 +1745,11 @@ create policy "Anyone can update their document." on storage.objects for update 
                               <div className="flex items-center truncate">
                                 <Phone size={16} className="text-teal-600 mr-3" />
                                 <span className="text-xs font-bold text-slate-700 truncate">{formData.phone}</span>
+                                {formData.is_phone_private && (
+                                  <span className="ml-2 px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[8px] font-black uppercase rounded-md flex items-center">
+                                    <EyeOff size={8} className="mr-1" /> Private
+                                  </span>
+                                )}
                               </div>
                               <button 
                                 onClick={() => handleCopy(formData.phone!, 'profile-phone')}
@@ -1864,28 +1892,32 @@ create policy "Anyone can update their document." on storage.objects for update 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
-                    <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+                      <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Session (e.g. 2019-20) *</label>
+                      <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" value={formData.batch || ''} onChange={(e) => setFormData({ ...formData, batch: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Chemistry Batch No. (e.g. 50th)</label>
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. 50th" value={formData.chemistry_batch || ''} onChange={(e) => setFormData({ ...formData, chemistry_batch: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Student ID (Optional)</label>
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. 1910123456" value={formData.student_id || ''} onChange={(e) => setFormData({ ...formData, student_id: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                      <input type="text" readOnly className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg outline-none" value={formData.department || 'Chemistry'} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">University</label>
+                      <input type="text" readOnly className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg outline-none" value={formData.university || 'University of Rajshahi'} />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Session (e.g. 2019-20) *</label>
-                    <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" value={formData.batch || ''} onChange={(e) => setFormData({ ...formData, batch: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Chemistry Batch No. (e.g. 50th)</label>
-                    <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. 50th" value={formData.chemistry_batch || ''} onChange={(e) => setFormData({ ...formData, chemistry_batch: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
-                    <input type="text" readOnly className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg outline-none" value={formData.department || 'Chemistry'} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">University</label>
-                    <input type="text" readOnly className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-slate-500 rounded-lg outline-none" value={formData.university || 'University of Rajshahi'} />
-                  </div>
-                </div>
 
                 <div className="border-t border-slate-200 pt-6">
                   <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Current Status & Work</h3>
@@ -1931,11 +1963,26 @@ create policy "Anyone can update their document." on storage.objects for update 
                 </div>
 
                 <div className="border-t border-slate-200 pt-6">
-                  <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Contact Information</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Contact Information</h3>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, is_phone_private: !formData.is_phone_private })}
+                      className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        formData.is_phone_private 
+                          ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                          : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      {formData.is_phone_private ? <EyeOff size={14} /> : <Eye size={14} />}
+                      <span>{formData.is_phone_private ? 'Phone Hidden' : 'Phone Public'}</span>
+                    </button>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
                       <input type="tel" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="01XXXXXXXXX" value={formData.phone || ''} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                      <p className="text-[10px] text-slate-400 mt-1 font-medium">Use the toggle above to hide your number from others.</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
@@ -2630,7 +2677,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       <Bookmark size={18} className={`mr-2 ${bookmarks.has(selectedProfile.id) ? 'fill-current' : ''}`} /> 
                       {bookmarks.has(selectedProfile.id) ? 'Saved' : 'Save'}
                     </button>
-                    {selectedProfile.phone && (
+                    {selectedProfile.phone && (!selectedProfile.is_phone_private || currentUser?.id === selectedProfile.id || isAdmin) && (
                       <div className="flex gap-2">
                         <a href={`tel:${selectedProfile.phone}`} className="flex items-center justify-center h-14 px-8 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-teal-100 premium-button">
                           <Phone size={18} className="mr-2" /> Call Now
@@ -2642,6 +2689,11 @@ create policy "Anyone can update their document." on storage.objects for update 
                         >
                           {copiedId === selectedProfile.id ? <Check size={18} className="text-teal-600" /> : <Copy size={18} />}
                         </button>
+                      </div>
+                    )}
+                    {selectedProfile.phone && selectedProfile.is_phone_private && currentUser?.id !== selectedProfile.id && !isAdmin && (
+                      <div className="flex items-center justify-center h-14 px-6 rounded-2xl bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest border border-slate-200">
+                        <EyeOff size={16} className="mr-2" /> Phone Private
                       </div>
                     )}
                     {selectedProfile.email && (
@@ -2712,7 +2764,13 @@ create policy "Anyone can update their document." on storage.objects for update 
                           </div>
                           <div>
                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Session & Batch</div>
-                            <div className="text-sm font-black text-slate-900 tracking-tight">{selectedProfile.chemistry_batch ? `${selectedProfile.chemistry_batch} Batch ` : ''}{selectedProfile.batch ? `(${selectedProfile.batch})` : 'N/A'}</div>
+                            <div className="text-sm font-black text-slate-900 tracking-tight">
+                              {selectedProfile.chemistry_batch ? `${selectedProfile.chemistry_batch} Batch ` : ''}
+                              {selectedProfile.batch ? `(${selectedProfile.batch})` : 'N/A'}
+                              {selectedProfile.student_id && (
+                                <div className="text-[10px] text-teal-600 mt-1">ID: {selectedProfile.student_id}</div>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {selectedProfile.location && (
