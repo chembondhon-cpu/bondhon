@@ -5,7 +5,8 @@ import {
   MapPin, Camera, Eye, EyeOff, Loader2, Home, MessageSquare, Lightbulb, 
   Target, X, Clock, Map, Bookmark, Calendar, CheckCircle, CalendarDays,
   BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown,
-  ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash
+  ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash, Atom, Hexagon,
+  TestTube, TestTubes, Microscope, Dna, Pipette, Beaker
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from './lib/supabase';
@@ -109,47 +110,51 @@ const MoleculeBackground = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const elementCount = isMobile ? 6 : 12;
+  const elementCount = isMobile ? 12 : 25;
+  const icons = [Atom, Hexagon, FlaskConical, TestTube, TestTubes, Microscope, Dna, Pipette, Beaker];
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-20">
-      {[...Array(elementCount)].map((_, i) => (
-        <motion.div
-          key={i}
-          initial={{ 
-            x: Math.random() * 100 + "%", 
-            y: Math.random() * 100 + "%",
-            scale: Math.random() * 0.5 + 0.5,
-            rotate: 0
-          }}
-          animate={{ 
-            x: [Math.random() * 100 + "%", Math.random() * 100 + "%"],
-            y: [Math.random() * 100 + "%", Math.random() * 100 + "%"],
-            rotate: 360
-          }}
-          transition={{ 
-            duration: 30 + Math.random() * 30, 
-            repeat: Infinity, 
-            ease: "linear" 
-          }}
-          className="absolute"
-        >
-          {i % 3 === 0 ? (
-            // Benzene Ring
-            <svg width={isMobile ? "60" : "100"} height={isMobile ? "60" : "100"} viewBox="0 0 100 100" className="text-teal-500/30 fill-none stroke-current stroke-2">
-              <path d="M50 10 L85 30 L85 70 L50 90 L15 70 L15 30 Z" />
-              <circle cx="50" cy="50" r="25" className="stroke-1 opacity-50" />
-            </svg>
-          ) : (
-            // Molecule
-            <div className={`flex items-center ${isMobile ? 'space-x-[-6px]' : 'space-x-[-10px]'}`}>
-              <div className={`${isMobile ? 'w-4 h-4' : 'w-6 h-6'} rounded-full bg-teal-400/20 border border-teal-500/30`} />
-              <div className={`${isMobile ? 'w-8 h-0.5' : 'w-12 h-1'} bg-teal-500/20 rotate-45`} />
-              <div className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} rounded-full bg-emerald-400/20 border border-emerald-500/30`} />
-            </div>
-          )}
-        </motion.div>
-      ))}
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-gradient-to-br from-indigo-50 via-cyan-50 to-emerald-50">
+      {/* Dynamic Gradient Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-fuchsia-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '10s'}}></div>
+      <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-cyan-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '12s', animationDelay: '2s'}}></div>
+      <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full bg-emerald-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '14s', animationDelay: '4s'}}></div>
+      <div className="absolute top-[40%] left-[40%] w-[30vw] h-[30vw] rounded-full bg-amber-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '11s', animationDelay: '1s'}}></div>
+      
+      {/* Hexagon Pattern Watermark */}
+      <div className="absolute inset-0 opacity-[0.06] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+      
+      {/* Floating Chemistry Elements */}
+      {[...Array(elementCount)].map((_, i) => {
+        const Icon = icons[i % icons.length];
+        const colors = ['text-cyan-500', 'text-fuchsia-500', 'text-emerald-500', 'text-amber-500', 'text-blue-500', 'text-indigo-500'];
+        const color = colors[i % colors.length];
+        
+        return (
+          <motion.div
+            key={i}
+            initial={{ 
+              x: Math.random() * 100 + "vw", 
+              y: Math.random() * 100 + "vh",
+              scale: Math.random() * 1.5 + 0.5,
+              rotate: Math.random() * 360
+            }}
+            animate={{ 
+              x: [Math.random() * 100 + "vw", Math.random() * 100 + "vw"],
+              y: [Math.random() * 100 + "vh", Math.random() * 100 + "vh"],
+              rotate: [Math.random() * 360, Math.random() * 360 + 360]
+            }}
+            transition={{ 
+              duration: 40 + Math.random() * 60, 
+              repeat: Infinity, 
+              ease: "linear" 
+            }}
+            className={`absolute opacity-[0.08] ${color}`}
+          >
+            <Icon size={isMobile ? 40 : 80} />
+          </motion.div>
+        );
+      })}
     </div>
   );
 };
@@ -1016,35 +1021,8 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
-        {/* Background Decorations */}
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-teal-50 rounded-full blur-[120px] opacity-60 animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-50 rounded-full blur-[120px] opacity-60 animate-pulse"></div>
-        
-        {/* Floating Elements */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {[...Array(6)].map((_, i) => (
-            <motion.div
-              key={i}
-              initial={{ 
-                x: Math.random() * 100 + "%", 
-                y: Math.random() * 100 + "%",
-                opacity: 0.1
-              }}
-              animate={{ 
-                x: [Math.random() * 100 + "%", Math.random() * 100 + "%"],
-                y: [Math.random() * 100 + "%", Math.random() * 100 + "%"],
-                rotate: [0, 360]
-              }}
-              transition={{ 
-                duration: 20 + Math.random() * 20, 
-                repeat: Infinity, 
-                ease: "linear" 
-              }}
-              className="absolute w-64 h-64 bg-gradient-to-br from-teal-100/20 to-emerald-100/20 rounded-[3rem] blur-3xl"
-            />
-          ))}
-        </div>
+      <div className="min-h-screen bg-transparent flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+        <MoleculeBackground />
         
         <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
           <motion.div 
@@ -1081,10 +1059,12 @@ export default function App() {
           transition={{ delay: 0.4 }}
           className="mt-10 sm:mx-auto sm:w-full sm:max-w-md relative z-10"
         >
-          <div className="bg-white/70 backdrop-blur-xl py-10 px-4 shadow-2xl shadow-slate-200/50 sm:rounded-3xl sm:px-10 border border-white/50">
-            <h3 className="text-2xl font-bold text-slate-900 mb-8 text-center font-display">
-              {authMode === 'login' ? 'Welcome Back' : 'Join the Bondhon'}
-            </h3>
+          <div className="glass-card py-10 px-4 sm:rounded-[2.5rem] sm:px-10 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+            <div className="relative z-10">
+              <h3 className="text-2xl font-black text-slate-900 mb-8 text-center tracking-tight">
+                {authMode === 'login' ? 'Welcome Back' : 'Join the Bondhon'}
+              </h3>
             
             {authError && (
               <motion.div 
@@ -1158,6 +1138,7 @@ export default function App() {
                 )}
               </button>
             </div>
+            </div>
           </div>
         </motion.div>
       </div>
@@ -1165,10 +1146,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans pb-20 sm:pb-8 pt-20 relative">
+    <div className="min-h-screen bg-transparent font-sans pb-20 sm:pb-8 pt-20 relative">
       <MoleculeBackground />
       {/* Header */}
-      <header className="bg-white/95 backdrop-blur-xl border-b border-slate-200/50 fixed top-0 left-0 right-0 z-50">
+      <header className="bg-white/70 backdrop-blur-2xl border-b border-white/50 shadow-sm fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -1214,16 +1195,16 @@ export default function App() {
                   }}
                   className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center space-x-2 relative z-10 ${
                     activeTab === tab.id 
-                      ? 'text-teal-700' 
+                      ? 'text-white' 
                       : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
-                  <tab.icon size={18} className={`transition-colors duration-300 ${activeTab === tab.id ? 'text-teal-600' : ''}`} />
+                  <tab.icon size={18} className={`transition-colors duration-300 ${activeTab === tab.id ? 'text-white' : ''}`} />
                   <span>{tab.label}</span>
                   {activeTab === tab.id && (
                     <motion.div 
                       layoutId="desktop-nav-active"
-                      className="absolute inset-0 bg-white rounded-xl shadow-lg shadow-slate-200/50 border border-slate-100 -z-10"
+                      className="absolute inset-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl shadow-lg shadow-teal-200/50 border border-teal-400/50 -z-10"
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}
@@ -1339,16 +1320,16 @@ create policy "Anyone can update their document." on storage.objects for update 
             }}
             className="flex-1 py-4 flex flex-col items-center justify-center relative group"
           >
-            <div className={`relative z-10 transition-all duration-300 ${activeTab === item.id ? 'text-teal-600 -translate-y-1' : 'text-slate-400'}`}>
-              <item.icon size={22} className={activeTab === item.id ? 'drop-shadow-[0_0_8px_rgba(20,184,166,0.4)]' : ''} />
+            <div className={`relative z-10 transition-all duration-300 ${activeTab === item.id ? 'text-white -translate-y-1' : 'text-slate-400'}`}>
+              <item.icon size={22} className={activeTab === item.id ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''} />
             </div>
-            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${activeTab === item.id ? 'text-teal-700 opacity-100 scale-100' : 'text-slate-400 opacity-60 scale-90'}`}>
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${activeTab === item.id ? 'text-teal-800 opacity-100 scale-100' : 'text-slate-400 opacity-60 scale-90'}`}>
               {item.label}
             </span>
             {activeTab === item.id && (
               <motion.div 
                 layoutId="mobile-nav-active"
-                className="absolute inset-x-2 inset-y-2 bg-teal-50 rounded-2xl -z-0 border border-teal-100/50"
+                className="absolute inset-x-2 inset-y-2 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-2xl -z-0 border border-teal-400/50 shadow-lg shadow-teal-200/50"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
               />
             )}
@@ -1370,8 +1351,9 @@ create policy "Anyone can update their document." on storage.objects for update 
             >
             
             {/* Create Post Box */}
-            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow">
-              <form onSubmit={handleCreatePost}>
+            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow relative bg-white/80 overflow-hidden">
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <form onSubmit={handleCreatePost} className="relative z-10">
                 <div className="flex items-start space-x-4">
                   <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white shadow-lg shadow-teal-100 shrink-0">
                     {formData.avatar_url ? (
@@ -1483,8 +1465,9 @@ create policy "Anyone can update their document." on storage.objects for update 
               {posts.filter(post => postFilter === 'All' || post.post_type === postFilter).map(post => {
                 const author = post.profiles || profiles.find(p => p.id === post.author_id);
                 return (
-                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow overflow-hidden group hover:border-teal-100/50 transition-all duration-500">
-                    <div className="p-4 sm:p-6">
+                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 relative bg-white/80">
+                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                    <div className="p-4 sm:p-6 relative z-10">
                       <div className="flex items-start justify-between mb-6">
                         <div className="flex items-center space-x-4 cursor-pointer" onClick={() => author && setSelectedProfile(author)}>
                           {author?.avatar_url ? (
@@ -1661,93 +1644,98 @@ create policy "Anyone can update their document." on storage.objects for update 
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.4, delay: idx * 0.05 }}
                           key={profile.id}
-                          className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-200/50 transition-all duration-500 flex flex-col cursor-pointer"
+                          className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 flex flex-col cursor-pointer relative bg-white"
                           onClick={() => setSelectedProfile(profile)}
                         >
-                          <div className="h-28 bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-800 relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                          <div className="h-32 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden">
+                            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                            <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12 group-hover:rotate-45 transition-transform duration-700" />
+                            <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-teal-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
                             <button 
                               onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
-                              className="absolute top-4 right-4 z-10 bg-white/10 backdrop-blur-md p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all"
+                              className="absolute top-4 right-4 z-10 bg-white/10 backdrop-blur-md p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all border border-white/10"
                             >
                               <Bookmark size={18} className={bookmarks.has(profile.id) ? "fill-current text-yellow-400" : ""} />
                             </button>
                           </div>
                           <div className="px-6 pb-6 flex-1 flex flex-col relative">
-                            <div className="-mt-14 mb-4 relative">
+                            <div className="-mt-16 mb-4 relative">
                               {profile.avatar_url ? (
-                                <img src={profile.avatar_url} alt={profile.name} className="h-24 w-24 rounded-3xl border-4 border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                                <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
                               ) : (
-                                <div className="h-24 w-24 rounded-3xl border-4 border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-3xl font-bold shadow-xl group-hover:scale-105 transition-transform duration-500">
+                                <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
                                   {profile.name?.charAt(0).toUpperCase()}
                                 </div>
                               )}
-                              <div className="absolute bottom-1 left-20">
-                                <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-white shadow-sm"></div>
+                              <div className="absolute bottom-2 left-20">
+                                <div className="w-5 h-5 rounded-full bg-emerald-500 border-4 border-white shadow-sm"></div>
                               </div>
                             </div>
                             <div className="flex-1">
-                              <h3 className="text-xl font-bold text-slate-900 leading-tight flex items-center group-hover:text-teal-700 transition-colors">
+                              <h3 className="text-xl font-black text-slate-900 leading-tight flex items-center group-hover:text-teal-700 transition-colors tracking-tight">
                                 {profile.name}
                                 <UserBadges profile={profile} size={20} />
                               </h3>
-                              <div className="mt-1.5 text-sm text-slate-600 font-semibold line-clamp-2 min-h-[2.5rem]">
-                                {profile.job_title} {profile.job_title && profile.institute_name && ' at '} {profile.institute_name}
+                              <div className="mt-1.5 text-sm text-teal-700 font-bold line-clamp-2 min-h-[2.5rem] bg-teal-50/50 inline-block px-3 py-1 rounded-lg border border-teal-100/50">
+                                {profile.job_title || profile.current_status} {profile.job_title && profile.institute_name && ' at '} {profile.institute_name}
                               </div>
                               
-                              <div className="mt-4 space-y-2">
+                              <div className="mt-5 space-y-3">
                                 <div className="flex flex-wrap items-center gap-2">
                                   {profile.location && (
-                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                                      <MapPin size={10} className="mr-1 text-teal-500"/> {profile.location}
+                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                      <MapPin size={12} className="mr-1.5 text-teal-600"/> {profile.location}
                                     </span>
                                   )}
-                                  <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                                    <GraduationCap size={10} className="mr-1 text-teal-500"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
+                                  <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                    <FlaskConical size={12} className="mr-1.5 text-teal-600"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
                                   </span>
                                   {profile.student_id && (
-                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                                      <Hash size={10} className="mr-1 text-teal-500"/> ID: {profile.student_id}
+                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                      <Hash size={12} className="mr-1.5 text-teal-600"/> ID: {profile.student_id}
                                     </span>
                                   )}
                                 </div>
                                 
-                                <div className="text-xs text-slate-500 space-y-1 mt-3">
+                                <div className="text-xs text-slate-500 space-y-2 mt-4 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                                   {profile.department && profile.university && (
-                                    <div className="flex items-start gap-2">
-                                      <BookOpen size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                                      <span>{profile.department}, {profile.university}</span>
+                                    <div className="flex items-start gap-2.5">
+                                      <Atom size={14} className="text-teal-500 shrink-0 mt-0.5" />
+                                      <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
                                     </div>
                                   )}
                                   {profile.email && (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2.5">
                                       <Mail size={14} className="text-slate-400 shrink-0" />
-                                      <span className="truncate">{profile.email}</span>
+                                      <span className="truncate font-medium">{profile.email}</span>
                                     </div>
                                   )}
                                   {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2.5">
                                       <Phone size={14} className="text-slate-400 shrink-0" />
-                                      <span>{profile.phone}</span>
+                                      <span className="font-medium">{profile.phone}</span>
                                     </div>
                                   )}
                                   {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2.5">
                                       <Phone size={14} className="text-slate-400 shrink-0" />
-                                      <span className="italic text-slate-400">Private</span>
+                                      <span className="italic text-slate-400 font-medium">Private</span>
                                     </div>
                                   )}
                                 </div>
                                 
                                 {profile.bio && (
-                                  <div className="mt-3 text-xs text-slate-600 italic line-clamp-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                    "{profile.bio}"
+                                  <div className="mt-3 text-xs text-slate-600 italic line-clamp-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative">
+                                    <div className="absolute top-2 left-2 text-slate-200">"</div>
+                                    <span className="relative z-10 pl-3">{profile.bio}</span>
                                   </div>
                                 )}
                               </div>
                             </div>
                             <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-teal-600 font-bold text-sm group-hover:translate-x-1 transition-transform">View Full Profile</span>
+                              <span className="text-teal-600 font-black text-xs uppercase tracking-widest group-hover:translate-x-1 transition-transform flex items-center">
+                                View Full Profile <ArrowRight size={14} className="ml-1" />
+                              </span>
                               <div className="h-8 w-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all">
                                 <ArrowRight size={16} />
                               </div>
@@ -1774,10 +1762,13 @@ create policy "Anyone can update their document." on storage.objects for update 
               className="max-w-4xl mx-auto"
             >
             {!isEditingProfile ? (
-              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden">
-                <div className="h-48 bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-900 relative">
+              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden bg-white/80 relative">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="h-48 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden">
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-                  <div className="absolute -bottom-16 left-10 group">
+                  <Hexagon className="absolute -right-10 -top-10 w-64 h-64 text-white opacity-5 rotate-12" />
+                  <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-teal-300 opacity-10" />
+                  <div className="absolute -bottom-16 left-10 group z-10">
                     {formData.avatar_url ? (
                       <img src={formData.avatar_url} alt={formData.name} className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-white object-cover shadow-2xl group-hover:scale-105 transition-transform duration-500" />
                     ) : (
@@ -1994,25 +1985,28 @@ create policy "Anyone can update their document." on storage.objects for update 
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 sm:p-8 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Edit Profile</h2>
-                    <p className="text-slate-500 mt-1">Update your information in the Bondhon directory.</p>
+              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden bg-white/80 relative">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="p-6 sm:p-10 border-b border-slate-100 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 flex flex-col sm:flex-row justify-between items-start sm:items-center relative overflow-hidden z-10">
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                  <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12" />
+                  <div className="relative z-10">
+                    <h2 className="text-3xl font-black text-white tracking-tight">Edit Profile</h2>
+                    <p className="text-teal-100 mt-1 font-medium">Update your information in the Bondhon directory.</p>
                   </div>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-3 mt-4 sm:mt-0 relative z-10">
                     <button
                       type="button"
                       onClick={() => setIsEditingProfile(false)}
-                      className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                      className="px-5 py-2.5 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-all backdrop-blur-md border border-white/20"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, is_public: !formData.is_public })}
-                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        formData.is_public ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-700'
+                      className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg ${
+                        formData.is_public ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-slate-700 text-slate-200 shadow-slate-900/20'
                       }`}
                     >
                       {formData.is_public ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -2021,7 +2015,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   </div>
                 </div>
                 
-                <form onSubmit={handleSaveProfile} className="p-6 sm:p-8 space-y-8">
+                <form onSubmit={handleSaveProfile} className="p-6 sm:p-10 space-y-8 relative z-10">
                   {/* Verification Status */}
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center space-x-3">
@@ -2329,9 +2323,10 @@ create policy "Anyone can update their document." on storage.objects for update 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     whileHover={{ y: -5 }}
-                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group"
+                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group relative bg-white/80"
                   >
-                    <div className="p-5 sm:p-8 flex-grow">
+                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                    <div className="p-5 sm:p-8 flex-grow relative z-10">
                       <div className="flex justify-between items-start mb-6">
                         <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-teal-50 text-teal-700 border border-teal-100">
                           {event.event_type}
@@ -2453,22 +2448,27 @@ create policy "Anyone can update their document." on storage.objects for update 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   whileHover={{ y: -8 }}
-                  className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100"
+                  className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100 hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 bg-white"
                   onClick={() => setSelectedProfile(profile)}
                 >
-                  <div className="p-5 sm:p-8 flex flex-col items-center text-center relative">
+                  <div className="h-28 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden w-full">
+                    <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                    <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12 group-hover:rotate-45 transition-transform duration-700" />
+                    <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-teal-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
-                      className="absolute top-6 right-6 p-2 bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm"
+                      className="absolute top-4 right-4 p-2 bg-white/10 backdrop-blur-md text-white/80 rounded-xl hover:bg-white/20 hover:text-white transition-all shadow-sm border border-white/10"
                     >
-                      <Bookmark size={18} className="fill-current" />
+                      <Bookmark size={18} className="fill-current text-yellow-400" />
                     </button>
-                    
-                    <div className="relative mb-6">
+                  </div>
+                  
+                  <div className="px-5 sm:px-8 pb-8 flex flex-col items-center text-center relative -mt-14">
+                    <div className="relative mb-4">
                       {profile.avatar_url ? (
-                        <img src={profile.avatar_url} alt={profile.name} className="h-24 w-24 rounded-[2rem] object-cover border-4 border-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                        <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-[2rem] object-cover border-[6px] border-white bg-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
                       ) : (
-                        <div className="h-24 w-24 rounded-[2rem] bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-3xl font-black border-4 border-white shadow-xl group-hover:scale-105 transition-transform duration-500">
+                        <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black border-[6px] border-white shadow-xl group-hover:scale-105 transition-transform duration-500">
                           {profile.name.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -2480,54 +2480,54 @@ create policy "Anyone can update their document." on storage.objects for update 
                     <h3 className="text-xl font-black text-slate-900 line-clamp-1 tracking-tight mb-1">
                       {profile.name}
                     </h3>
-                    <p className="text-sm text-teal-700 font-bold mb-1 line-clamp-1 bg-teal-50 px-3 py-1 rounded-lg">
+                    <p className="text-sm text-teal-700 font-bold mb-1 line-clamp-1 bg-teal-50 px-3 py-1 rounded-lg border border-teal-100/50 inline-block">
                       {profile.job_title || profile.current_status}
                     </p>
-                    <p className="text-xs text-slate-400 font-bold line-clamp-1 uppercase tracking-widest mb-4">
+                    <p className="text-xs text-slate-500 font-bold line-clamp-1 uppercase tracking-widest mb-4">
                       {profile.institute_name || profile.university}
                     </p>
                     
-                    <div className="w-full text-left space-y-2 text-xs text-slate-500">
+                    <div className="w-full text-left space-y-2 text-xs text-slate-500 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
                       <div className="flex flex-wrap justify-center gap-2 mb-3">
                         {profile.location && (
-                          <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                            <MapPin size={10} className="mr-1 text-teal-500"/> {profile.location}
+                          <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                            <MapPin size={12} className="mr-1.5 text-teal-600"/> {profile.location}
                           </span>
                         )}
-                        <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                          <GraduationCap size={10} className="mr-1 text-teal-500"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
+                        <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
+                          <FlaskConical size={12} className="mr-1.5 text-teal-600"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
                         </span>
                       </div>
                       
                       {profile.department && profile.university && (
-                        <div className="flex items-start gap-2">
-                          <BookOpen size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                          <span>{profile.department}, {profile.university}</span>
+                        <div className="flex items-start gap-2.5">
+                          <Atom size={14} className="text-teal-500 shrink-0 mt-0.5" />
+                          <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
                         </div>
                       )}
                       {profile.email && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                           <Mail size={14} className="text-slate-400 shrink-0" />
-                          <span className="truncate">{profile.email}</span>
+                          <span className="truncate font-medium">{profile.email}</span>
                         </div>
                       )}
                       {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                           <Phone size={14} className="text-slate-400 shrink-0" />
-                          <span>{profile.phone}</span>
+                          <span className="font-medium">{profile.phone}</span>
                         </div>
                       )}
                       {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                           <Phone size={14} className="text-slate-400 shrink-0" />
-                          <span className="italic text-slate-400">Private</span>
+                          <span className="italic text-slate-400 font-medium">Private</span>
                         </div>
                       )}
                     </div>
                   </div>
                   
-                  <div className="px-8 pb-8">
-                    <button className="w-full py-3 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-teal-600 transition-all premium-button">
+                  <div className="px-5 sm:px-8 pb-8">
+                    <button className="w-full py-3.5 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-teal-600 transition-all premium-button shadow-lg shadow-slate-200">
                       View Full Profile
                     </button>
                   </div>
@@ -2871,7 +2871,10 @@ create policy "Anyone can update their document." on storage.objects for update 
               </button>
 
               {/* Cover & Avatar */}
-              <div className="h-48 sm:h-64 bg-gradient-to-br from-teal-600 via-teal-700 to-slate-900 relative shrink-0 overflow-hidden">
+              <div className="h-48 sm:h-64 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative shrink-0 overflow-hidden">
+                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                <Hexagon className="absolute -right-10 -top-10 w-64 h-64 text-white opacity-5 rotate-12" />
+                <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-teal-300 opacity-10" />
                 <div className="absolute inset-0 opacity-20">
                   <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2),transparent_70%)]"></div>
                 </div>

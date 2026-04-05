@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -8,7 +8,7 @@
 
 @layer base {
   body {
-    @apply bg-[#f8fafc] text-slate-900 antialiased selection:bg-teal-100 selection:text-teal-900;
+    @apply bg-transparent text-slate-900 antialiased selection:bg-teal-200 selection:text-teal-900;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -17,11 +17,11 @@
 }
 
 .glass-card {
-  @apply bg-white/90 sm:bg-white/80 backdrop-blur-sm sm:backdrop-blur-md border border-white/20 shadow-xl shadow-slate-200/50;
+  @apply bg-white/70 backdrop-blur-xl border border-white/60 shadow-2xl shadow-teal-900/5;
 }
 
 .premium-shadow {
-  @apply shadow-[0_8px_30px_rgb(0,0,0,0.04)];
+  @apply shadow-[0_8px_30px_rgb(20,184,166,0.1)];
 }
 
 .premium-button {
@@ -38,5 +38,24 @@
 }
 
 .gradient-text {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-emerald-600 font-bold;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-teal-600 via-emerald-500 to-cyan-500 font-black;
+}
+
+@keyframes blob {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(30px, -50px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
 }
