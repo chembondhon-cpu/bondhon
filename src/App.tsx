@@ -1351,7 +1351,7 @@ create policy "Anyone can update their document." on storage.objects for update 
             >
             
             {/* Create Post Box */}
-            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow relative bg-white/80 overflow-hidden">
+            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow relative overflow-hidden">
               <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
               <form onSubmit={handleCreatePost} className="relative z-10">
                 <div className="flex items-start space-x-4">
@@ -1465,7 +1465,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               {posts.filter(post => postFilter === 'All' || post.post_type === postFilter).map(post => {
                 const author = post.profiles || profiles.find(p => p.id === post.author_id);
                 return (
-                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 relative bg-white/80">
+                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 relative">
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                     <div className="p-4 sm:p-6 relative z-10">
                       <div className="flex items-start justify-between mb-6">
@@ -1644,10 +1644,11 @@ create policy "Anyone can update their document." on storage.objects for update 
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.4, delay: idx * 0.05 }}
                           key={profile.id}
-                          className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 flex flex-col cursor-pointer relative bg-white"
+                          className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 flex flex-col cursor-pointer relative"
                           onClick={() => setSelectedProfile(profile)}
                         >
-                          <div className="h-32 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden">
+                          <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
+                          <div className="h-32 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden z-10">
                             <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
                             <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12 group-hover:rotate-45 transition-transform duration-700" />
                             <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-teal-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
@@ -1658,7 +1659,8 @@ create policy "Anyone can update their document." on storage.objects for update 
                               <Bookmark size={18} className={bookmarks.has(profile.id) ? "fill-current text-yellow-400" : ""} />
                             </button>
                           </div>
-                          <div className="px-6 pb-6 flex-1 flex flex-col relative">
+                          <div className="px-6 pb-6 flex-1 flex flex-col relative z-10">
+                            <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
                             <div className="-mt-16 mb-4 relative">
                               {profile.avatar_url ? (
                                 <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
@@ -1762,7 +1764,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               className="max-w-4xl mx-auto"
             >
             {!isEditingProfile ? (
-              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden bg-white/80 relative">
+              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden relative">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="h-48 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden">
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
@@ -1985,7 +1987,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 </div>
               </div>
             ) : (
-              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden bg-white/80 relative">
+              <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden relative">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="p-6 sm:p-10 border-b border-slate-100 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 flex flex-col sm:flex-row justify-between items-start sm:items-center relative overflow-hidden z-10">
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
@@ -2323,7 +2325,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     whileHover={{ y: -5 }}
-                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group relative bg-white/80"
+                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group relative"
                   >
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                     <div className="p-5 sm:p-8 flex-grow relative z-10">
@@ -2448,7 +2450,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   whileHover={{ y: -8 }}
-                  className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100 hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 bg-white"
+                  className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100 hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 relative"
                   onClick={() => setSelectedProfile(profile)}
                 >
                   <div className="h-28 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden w-full">
@@ -2463,7 +2465,8 @@ create policy "Anyone can update their document." on storage.objects for update 
                     </button>
                   </div>
                   
-                  <div className="px-5 sm:px-8 pb-8 flex flex-col items-center text-center relative -mt-14">
+                  <div className="px-5 sm:px-8 pb-8 flex flex-col items-center text-center relative -mt-14 z-10">
+                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10 mt-14"></div>
                     <div className="relative mb-4">
                       {profile.avatar_url ? (
                         <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-[2rem] object-cover border-[6px] border-white bg-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
@@ -2599,29 +2602,32 @@ create policy "Anyone can update their document." on storage.objects for update 
 
             {/* Analytics Dashboard */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6">
-                <div className="p-4 bg-teal-50 text-teal-600 rounded-2xl shadow-sm">
+              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="p-4 bg-teal-50 text-teal-600 rounded-2xl shadow-sm relative z-10">
                   <Users size={32} />
                 </div>
-                <div>
+                <div className="relative z-10">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Members</p>
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.length}</h3>
                 </div>
               </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6">
-                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm">
+              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm relative z-10">
                   <MessageSquare size={32} />
                 </div>
-                <div>
+                <div className="relative z-10">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Posts</p>
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
                 </div>
               </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6">
-                <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm">
+              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm relative z-10">
                   <Calendar size={32} />
                 </div>
-                <div>
+                <div className="relative z-10">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Events</p>
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{events.length}</h3>
                 </div>
@@ -2629,8 +2635,9 @@ create policy "Anyone can update their document." on storage.objects for update 
             </div>
 
             {/* Verification Requests */}
-            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100">
-              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
+            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center relative z-10">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-100">
                     <Crown size={20} />
@@ -2711,11 +2718,12 @@ create policy "Anyone can update their document." on storage.objects for update 
             </div>
 
             {/* User Management Table */}
-            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100">
-              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30">
+            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 relative z-10">
                 <h3 className="text-xl font-black text-slate-900 tracking-tight">Community Directory Management</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto relative z-10">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -2752,70 +2760,77 @@ create policy "Anyone can update their document." on storage.objects for update 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12">
               {/* Add Admin */}
-              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100">
-                <div className="flex items-center space-x-4 mb-8">
-                  <div className="p-3 bg-slate-900 text-white rounded-2xl">
-                    <ShieldCheck size={24} />
+              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center space-x-4 mb-8">
+                    <div className="p-3 bg-slate-900 text-white rounded-2xl">
+                      <ShieldCheck size={24} />
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Elevate to Admin</h3>
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Elevate to Admin</h3>
+                  <form onSubmit={handleAddAdmin} className="space-y-6">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">User Email Address</label>
+                      <input 
+                        required 
+                        type="email" 
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all font-bold text-slate-700" 
+                        placeholder="Enter registered email..."
+                        value={adminEmailToAdd} 
+                        onChange={e => setAdminEmailToAdd(e.target.value)} 
+                      />
+                      <p className="text-[10px] text-slate-400 font-bold mt-3 ml-1 uppercase tracking-tight">Note: User must already have an account.</p>
+                    </div>
+                    <button type="submit" disabled={isAddingAdmin} className="w-full bg-slate-900 text-white font-black py-4 px-6 rounded-2xl hover:bg-teal-600 transition-all disabled:opacity-50 uppercase text-xs tracking-widest premium-button">
+                      {isAddingAdmin ? 'Processing...' : 'Grant Admin Privileges'}
+                    </button>
+                  </form>
                 </div>
-                <form onSubmit={handleAddAdmin} className="space-y-6">
-                  <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">User Email Address</label>
-                    <input 
-                      required 
-                      type="email" 
-                      className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all font-bold text-slate-700" 
-                      placeholder="Enter registered email..."
-                      value={adminEmailToAdd} 
-                      onChange={e => setAdminEmailToAdd(e.target.value)} 
-                    />
-                    <p className="text-[10px] text-slate-400 font-bold mt-3 ml-1 uppercase tracking-tight">Note: User must already have an account.</p>
-                  </div>
-                  <button type="submit" disabled={isAddingAdmin} className="w-full bg-slate-900 text-white font-black py-4 px-6 rounded-2xl hover:bg-teal-600 transition-all disabled:opacity-50 uppercase text-xs tracking-widest premium-button">
-                    {isAddingAdmin ? 'Processing...' : 'Grant Admin Privileges'}
-                  </button>
-                </form>
               </div>
 
               {/* Bulk Upload Info */}
-              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 flex flex-col">
-                <div className="flex items-center space-x-4 mb-8">
-                  <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl">
-                    <Database size={24} />
+              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 flex flex-col relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="relative z-10 flex-grow flex flex-col">
+                  <div className="flex items-center space-x-4 mb-8">
+                    <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl">
+                      <Database size={24} />
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Bulk Operations</h3>
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Bulk Operations</h3>
-                </div>
-                <div className="bg-slate-50/50 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 text-sm text-slate-600 space-y-4 flex-grow">
-                  <p className="font-bold">To bulk upload members, use the Supabase Infrastructure:</p>
-                  <ul className="space-y-3">
-                    <li className="flex items-start">
-                      <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">1</div>
-                      <span className="font-medium">Access Supabase Dashboard</span>
-                    </li>
-                    <li className="flex items-start">
-                      <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">2</div>
-                      <span className="font-medium">Authentication &gt; Users &gt; Import</span>
-                    </li>
-                    <li className="flex items-start">
-                      <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">3</div>
-                      <span className="font-medium">Upload CSV with required headers</span>
-                    </li>
-                  </ul>
-                  <div className="pt-4 border-t border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Security Protocol</p>
-                    <p className="text-xs font-medium mt-1">Direct bulk creation is restricted to infrastructure level for security.</p>
+                  <div className="bg-slate-50/50 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 text-sm text-slate-600 space-y-4 flex-grow">
+                    <p className="font-bold">To bulk upload members, use the Supabase Infrastructure:</p>
+                    <ul className="space-y-3">
+                      <li className="flex items-start">
+                        <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">1</div>
+                        <span className="font-medium">Access Supabase Dashboard</span>
+                      </li>
+                      <li className="flex items-start">
+                        <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">2</div>
+                        <span className="font-medium">Authentication &gt; Users &gt; Import</span>
+                      </li>
+                      <li className="flex items-start">
+                        <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">3</div>
+                        <span className="font-medium">Upload CSV with required headers</span>
+                      </li>
+                    </ul>
+                    <div className="pt-4 border-t border-slate-100">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Security Protocol</p>
+                      <p className="text-xs font-medium mt-1">Direct bulk creation is restricted to infrastructure level for security.</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
             {/* Admin User List */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-                <h3 className="text-lg font-bold text-slate-900">Current Admins</h3>
+            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 relative z-10">
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Current Admins</h3>
               </div>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 relative z-10">
                 {profiles.filter(p => p.role === 'admin' || p.email === 'fllimonm1212@gmail.com').map(admin => (
                   <div key={admin.id} className="px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -2881,6 +2896,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               </div>
               
               <div className="px-8 sm:px-16 pb-16 relative z-10">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
                 <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10">
                   <div className="flex flex-col">
                     <div className="-mt-24 sm:-mt-32 mb-6 relative inline-block">
@@ -2972,8 +2988,9 @@ create policy "Anyone can update their document." on storage.objects for update 
                         </div>
                         <h3 className="text-xl font-black text-slate-900 tracking-tight">Career & Status</h3>
                       </div>
-                      <div className="glass-card border border-slate-100 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 space-y-4 sm:space-y-6 shadow-sm">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="glass-card border border-slate-100 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 space-y-4 sm:space-y-6 shadow-sm relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Status</div>
                           <div className="text-sm font-black">
                             <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
@@ -2999,9 +3016,11 @@ create policy "Anyone can update their document." on storage.objects for update 
 
                   {/* Right Column (Sidebar Info) */}
                   <div className="space-y-8">
-                    <section className="bg-slate-50/50 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 border border-slate-100">
-                      <h3 className="text-[10px] font-black text-slate-400 mb-8 uppercase tracking-widest">Academic & Location</h3>
-                      <div className="space-y-8">
+                    <section className="glass-card bg-slate-50/50 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 border border-slate-100 relative overflow-hidden">
+                      <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                      <div className="relative z-10">
+                        <h3 className="text-[10px] font-black text-slate-400 mb-8 uppercase tracking-widest">Academic & Location</h3>
+                        <div className="space-y-8">
                         <div className="flex items-start space-x-4">
                           <div className="p-2.5 bg-white rounded-xl shadow-sm text-teal-600">
                             <GraduationCap size={20} />
@@ -3040,12 +3059,15 @@ create policy "Anyone can update their document." on storage.objects for update 
                           </div>
                         )}
                       </div>
+                      </div>
                     </section>
 
                     {(selectedProfile.social_links?.facebook || selectedProfile.social_links?.linkedin) && (
-                      <section className="bg-slate-900 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200">
-                        <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">Digital Presence</h3>
-                        <div className="flex gap-4">
+                      <section className="glass-card bg-slate-900 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200 relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                        <div className="relative z-10">
+                          <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">Digital Presence</h3>
+                          <div className="flex gap-4">
                           {selectedProfile.social_links.facebook && (
                             <a href={selectedProfile.social_links.facebook} target="_blank" rel="noopener noreferrer" className="flex-1 bg-white/10 hover:bg-white/20 p-4 rounded-2xl text-white transition-all flex items-center justify-center border border-white/10">
                               <Facebook size={24} />
@@ -3056,6 +3078,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                               <Linkedin size={24} />
                             </a>
                           )}
+                        </div>
                         </div>
                       </section>
                     )}
@@ -3080,13 +3103,16 @@ create policy "Anyone can update their document." on storage.objects for update 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full shadow-2xl"
+              className="glass-card rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
             >
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Delete User</h3>
-              <p className="text-slate-600 mb-6">Are you sure you want to delete <strong>{userToDelete.name}</strong>? This action cannot be undone.</p>
-              <div className="flex justify-end space-x-3">
-                <button onClick={() => setUserToDelete(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                <button onClick={confirmDeleteUser} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Delete User</button>
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="relative z-10">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete User</h3>
+                <p className="text-slate-600 mb-6">Are you sure you want to delete <strong>{userToDelete.name}</strong>? This action cannot be undone.</p>
+                <div className="flex justify-end space-x-3">
+                  <button onClick={() => setUserToDelete(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
+                  <button onClick={confirmDeleteUser} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Delete User</button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -3104,13 +3130,16 @@ create policy "Anyone can update their document." on storage.objects for update 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-xl p-4 sm:p-6 max-w-md w-full shadow-2xl"
+              className="glass-card rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
             >
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Post</h3>
-              <p className="text-slate-600 mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
-              <div className="flex justify-end space-x-3">
-                <button onClick={() => setPostToDelete(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                <button onClick={confirmDeletePost} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Delete Post</button>
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="relative z-10">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Post</h3>
+                <p className="text-slate-600 mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
+                <div className="flex justify-end space-x-3">
+                  <button onClick={() => setPostToDelete(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
+                  <button onClick={confirmDeletePost} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Delete Post</button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -3128,28 +3157,31 @@ create policy "Anyone can update their document." on storage.objects for update 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl"
+              className="glass-card rounded-2xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl relative overflow-hidden"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-slate-900">Edit Post</h3>
-                <button onClick={() => setEditingPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                  <X size={20} className="text-slate-500" />
-                </button>
-              </div>
-              <form onSubmit={handleUpdatePost}>
-                <textarea
-                  className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none resize-none text-slate-800"
-                  rows={6}
-                  value={editingPost.content}
-                  onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
-                  placeholder="What's on your mind?"
-                  required
-                />
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button type="button" onClick={() => setEditingPost(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                  <button type="submit" className="px-6 py-2 bg-teal-600 text-white rounded-lg font-bold hover:bg-teal-700 transition-colors shadow-md">Save Changes</button>
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="relative z-10">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-bold text-slate-900">Edit Post</h3>
+                  <button onClick={() => setEditingPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={20} className="text-slate-500" />
+                  </button>
                 </div>
-              </form>
+                <form onSubmit={handleUpdatePost}>
+                  <textarea
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none resize-none text-slate-800 bg-white/50 backdrop-blur-sm"
+                    rows={6}
+                    value={editingPost.content}
+                    onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
+                    placeholder="What's on your mind?"
+                    required
+                  />
+                  <div className="flex justify-end space-x-3 mt-6">
+                    <button type="button" onClick={() => setEditingPost(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
+                    <button type="submit" className="px-6 py-2 bg-teal-600 text-white rounded-lg font-bold hover:bg-teal-700 transition-colors shadow-md">Save Changes</button>
+                  </div>
+                </form>
+              </div>
             </motion.div>
           </motion.div>
         )}
