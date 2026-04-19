@@ -516,8 +516,10 @@ export default function App() {
         console.error('Error fetching profiles:', error);
         if (error.code === '42P01') {
           setDbError('Database tables are missing. Please run the SQL setup script below in your Supabase SQL Editor.');
+        } else if (error.message?.includes('Failed to fetch') || error.message?.includes('Network error')) {
+          setDbError('Network Error: Could not connect to Supabase. This could be due to invalid API keys, a paused project, or an internet issue.');
         } else {
-          setDbError('Failed to connect to database. Please check your connection.');
+          setDbError('Failed to connect to database. Please check your Supabase configuration.');
         }
       } else if (data) {
         setDbError('');
@@ -1448,11 +1450,14 @@ export default function App() {
       {dbError && (
         <div className="bg-amber-50 border-b border-amber-200 p-4">
           <div className="max-w-7xl mx-auto flex items-start space-x-3">
-            <Database className="text-amber-600 shrink-0 mt-0.5" size={20} />
-            <div>
-              <h3 className="text-sm font-bold text-amber-800">Supabase Setup Required</h3>
-              <p className="text-sm text-amber-700 mt-1">{dbError}</p>
-              <div className="mt-3 bg-white p-3 rounded border border-amber-200 overflow-x-auto text-xs font-mono text-slate-800">
+      <Database className="text-amber-600 shrink-0 mt-0.5" size={20} />
+      <div className="flex-1">
+        <h3 className="text-sm font-bold text-amber-800">Supabase Connection Issue</h3>
+        <p className="text-sm text-amber-700 mt-1">{dbError}</p>
+        <p className="text-xs text-amber-600 mt-2 font-medium">
+          Tip: Ensure your Supabase URL and Anon Key are correctly configured in the AI Studio <b>Secrets</b> panel or <b>.env</b> file.
+        </p>
+        <div className="mt-3 bg-white p-3 rounded border border-amber-200 overflow-x-auto text-xs font-mono text-slate-800">
                 <pre>{`-- Run this in Supabase SQL Editor:
 create table if not exists profiles (
   id uuid references auth.users on delete cascade primary key,
@@ -1613,16 +1618,10 @@ create policy "Anyone can update their document." on storage.objects for update 
                 <button onClick={() => { setActiveTab('directory'); setFilterStatus('Student'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
                   <Users size={14} className="mr-2 text-blue-600" /> Find Students
                 </button>
-                <button onClick={() => { setActiveTab('directory'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
-                  <Lightbulb size={14} className="mr-2 text-blue-600" /> Skills
-                </button>
-                <button onClick={() => { setActiveTab('directory'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
-                  <FlaskConical size={14} className="mr-2 text-orange-600" /> Research Groups
-                </button>
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mt-10 max-w-md mx-auto">
                 <div className="bg-indigo-600/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/20 transition-all duration-300 cursor-default">
                   <div className="bg-white/20 p-3 rounded-xl mr-4">
                     <Users className="text-white" size={24} />
@@ -1630,24 +1629,6 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="text-left">
                     <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Total Students</div>
                     <div className="text-white text-2xl font-black">{profiles.length}+</div>
-                  </div>
-                </div>
-                <div className="bg-blue-500/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/20 transition-all duration-300 cursor-default">
-                  <div className="bg-white/20 p-3 rounded-xl mr-4">
-                    <Lightbulb className="text-white" size={24} />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Specialized Skills</div>
-                    <div className="text-white text-2xl font-black">28</div>
-                  </div>
-                </div>
-                <div className="bg-orange-500/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/20 transition-all duration-300 cursor-default">
-                  <div className="bg-white/20 p-3 rounded-xl mr-4">
-                    <FlaskConical className="text-white" size={24} />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Research Group</div>
-                    <div className="text-white text-2xl font-black">08</div>
                   </div>
                 </div>
               </div>
