@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://epeevmwybmxjglwqafil.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_yhsXGaVfQoCke-g9ngP7wQ_FtV7UV6p';
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey === 'sb_publishable_yhsXGaVfQoCke-g9ngP7wQ_FtV7UV6p') {
-  console.warn('Supabase configuration is incomplete or using a placeholder key. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('Supabase configuration is incomplete. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

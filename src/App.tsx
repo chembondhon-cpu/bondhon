@@ -6,6 +6,7 @@ import {
   Target, X, Clock, Map, Bookmark, Calendar, CheckCircle, CalendarDays,
   BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown,
   ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash, Atom, Hexagon,
+  Sparkles,
   TestTube, TestTubes, Microscope, Dna, Pipette, Beaker, Activity, LayoutGrid, List, Cloud, CloudOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,7 +19,6 @@ import { saveProfilesLocally, getLocalProfiles, saveOfflineMutation, getOfflineM
 import { Messages } from './components/Messages';
 
 type CurrentStatus = 'Student' | 'Govt Job' | 'Private Job' | 'Business' | 'Abroad' | '';
-type PostType = 'Job Update' | 'Advice' | 'Opportunity' | 'General';
 type EventType = 'Reunion' | 'Seminar' | 'Webinar' | 'Football Tournament' | 'Cricket Tournament' | 'Other';
 
 export interface Profile {
@@ -49,18 +49,6 @@ export interface Profile {
   verification_status?: 'none' | 'pending' | 'verified' | 'rejected';
 }
 
-interface Post {
-  id: string;
-  author_id: string;
-  content: string;
-  post_type: PostType;
-  job_link?: string;
-  job_pdf_url?: string;
-  job_deadline?: string;
-  created_at: string;
-  profiles?: Profile; // Joined data
-}
-
 interface AppEvent {
   id: string;
   title: string;
@@ -68,11 +56,21 @@ interface AppEvent {
   event_type: EventType;
   event_date: string;
   location: string;
+  image_url?: string;
   created_by: string;
   created_at: string;
+  custom_fields?: string[];
   profiles?: Profile;
   rsvps?: { count: number }[];
   user_rsvp?: { status: string }[];
+}
+
+interface EventRSVP {
+  event_id: string;
+  user_id: string;
+  status: string;
+  answers?: Record<string, string>;
+  profiles?: Profile;
 }
 
 interface Bookmark {
@@ -80,7 +78,6 @@ interface Bookmark {
 }
 
 const STATUS_OPTIONS: CurrentStatus[] = ['Student', 'Govt Job', 'Private Job', 'Business', 'Abroad'];
-const POST_TYPES: PostType[] = ['General', 'Job Update', 'Advice', 'Opportunity'];
 
 const INITIAL_FORM_DATA: Partial<Profile> = {
   department: '',
@@ -228,7 +225,7 @@ export default function App() {
   const [dbError, setDbError] = useState('');
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
 
@@ -244,8 +241,6 @@ export default function App() {
   const [exportBatch, setExportBatch] = useState<string>('');
   const [exportChemistryBatch, setExportChemistryBatch] = useState<string>('');
   const [userToDelete, setUserToDelete] = useState<{id: string, name: string} | null>(null);
-  const [postToDelete, setPostToDelete] = useState<string | null>(null);
-  const [editingPost, setEditingPost] = useState<Post | null>(null);
   
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
@@ -257,16 +252,6 @@ export default function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Post Form State
-  const [postContent, setPostContent] = useState('');
-  const [postType, setPostType] = useState<PostType>('General');
-  const [postFilter, setPostFilter] = useState<'All' | PostType>('All');
-  const [jobLink, setJobLink] = useState('');
-  const [jobDeadline, setJobDeadline] = useState('');
-  const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
-  const [isPosting, setIsPosting] = useState(false);
-  const jobPdfInputRef = useRef<HTMLInputElement>(null);
-
   // Event Form State
   const [eventForm, setEventForm] = useState({
     title: '',
@@ -277,6 +262,20 @@ export default function App() {
   });
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
+  const [eventFormQuestions, setEventFormQuestions] = useState<string[]>([]);
+  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
+  const [isUploadingEventImage, setIsUploadingEventImage] = useState(false);
+  const eventImageInputRef = useRef<HTMLInputElement>(null);
+  
+  // Custom RSVP Form State
+  const [rsvpEvent, setRsvpEvent] = useState<AppEvent | null>(null);
+  const [rsvpAnswers, setRsvpAnswers] = useState<Record<string, string>>({});
+  const [isSubmittingRSVP, setIsSubmittingRSVP] = useState(false);
+  
+  // View Responses State
+  const [viewResponsesEvent, setViewResponsesEvent] = useState<AppEvent | null>(null);
+  const [eventResponses, setEventResponses] = useState<EventRSVP[]>([]);
+  const [isLoadingResponses, setIsLoadingResponses] = useState(false);
 
   // Profile Form State
   const [formData, setFormData] = useState<Partial<Profile>>(INITIAL_FORM_DATA);
@@ -285,6 +284,20 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncStatus, setSyncStatus] = useState<'online' | 'offline' | 'syncing'>('online');
   const [pendingMutationsCount, setPendingMutationsCount] = useState(0);
+
+  const isAdmin = currentUser?.email === 'fllimonm1212@gmail.com' || currentUser?.email === 'chembondhon@gmail.com' || profiles.find(p => p.id === currentUser?.id)?.role === 'admin';
+
+  const defaultHeroImage = 'https://images.unsplash.com/photo-1576086213369-97a306d36557?q=80&w=2080&auto=format&fit=crop';
+  const [heroImageUrl, setHeroImageUrl] = useState<string>(defaultHeroImage);
+  const [isUploadingHero, setIsUploadingHero] = useState(false);
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isFeedEnabled, setIsFeedEnabled] = useState(true);
+  
+  const [newPostContent, setNewPostContent] = useState('');
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [postImageFile, setPostImageFile] = useState<File | null>(null);
+  const postImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -396,6 +409,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    fetchSiteConfig();
     if (currentUser) {
       fetchProfiles();
       fetchMyProfile();
@@ -494,6 +508,8 @@ export default function App() {
 };
 
   const fetchProfiles = async () => {
+    // Also fetch site config
+    fetchSiteConfig();
     try {
       const localProfiles = await getLocalProfiles();
       if (localProfiles && localProfiles.length > 0) {
@@ -509,7 +525,6 @@ export default function App() {
       const { data, error } = await withTimeout(supabase
         .from('profiles')
         .select('*')
-        .eq('is_public', true)
         .order('created_at', { ascending: false })) as any;
 
       if (error) {
@@ -536,6 +551,131 @@ export default function App() {
     }
   };
 
+  const fetchSiteConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('site_config')
+        .select('*');
+      
+      if (data) {
+        data.forEach(config => {
+          if (config.key === 'hero_image_url' && config.value.startsWith('http')) {
+            setHeroImageUrl(config.value);
+          }
+          if (config.key === 'is_feed_enabled') {
+            setIsFeedEnabled(config.value === 'true');
+          }
+        });
+      } else if (error) {
+        console.warn('Site config error:', error);
+      }
+    } catch (e) {
+      console.error('Config fetch failed:', e);
+    }
+  };
+
+  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!isAdmin) {
+      alert("Access Denied: You must be an admin to change the hero image.");
+      return;
+    }
+
+    try {
+      setIsUploadingHero(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `hero_${Date.now()}.${fileExt}`;
+      const filePath = `hero/${fileName}`;
+
+      console.log('Uploading hero image to path:', filePath);
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      console.log('Public URL generated:', publicUrl);
+
+      // Save to site_config
+      const { error: configError } = await supabase
+        .from('site_config')
+        .upsert({ key: 'hero_image_url', value: publicUrl, updated_at: new Date().toISOString() });
+
+      if (configError) {
+        console.error('Database/Config error:', configError);
+        throw configError;
+      }
+
+      setHeroImageUrl(publicUrl);
+      alert('Hero image updated successfully!');
+    } catch (error: any) {
+      console.error('Error uploading hero image:', error);
+      alert('Error uploading hero image: ' + (error.message || 'Unknown error. Check console for details.'));
+    } finally {
+      setIsUploadingHero(false);
+      if (heroFileInputRef.current) heroFileInputRef.current.value = '';
+    }
+  };
+
+  const fetchPosts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*, profiles(name, avatar_url, chemistry_batch)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPosts(data || []);
+    } catch (err) {
+      console.error('Error fetching posts:', err);
+    }
+  };
+
+  const createPost = async (content: string, imageUrl?: string) => {
+    if (!currentUser) return;
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .insert({
+          author_id: currentUser.id,
+          content,
+          image_url: imageUrl,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      fetchPosts();
+      return true;
+    } catch (err) {
+      console.error('Error creating post:', err);
+      return false;
+    }
+  };
+
+  const deletePost = async (postId: string) => {
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+      fetchPosts();
+    } catch (err) {
+      console.error('Error deleting post:', err);
+    }
+  };
+
   const fetchEvents = async () => {
     const cachedEvents = localStorage.getItem('chem_events');
     if (cachedEvents) {
@@ -550,7 +690,7 @@ export default function App() {
 
     try {
       const { data, error } = await withTimeout(supabase
-        .from('events')
+        .from('alumni_events')
         .select('*, profiles(*), rsvps:event_rsvps(count), user_rsvp:event_rsvps(status)')
         .order('event_date', { ascending: true })) as any;
 
@@ -593,41 +733,6 @@ export default function App() {
     }
   };
 
-  const fetchPosts = async () => {
-    const cachedPosts = localStorage.getItem('chem_posts');
-    if (cachedPosts) {
-      try {
-        setPosts(JSON.parse(cachedPosts));
-      } catch (e) {
-        console.error('Failed to parse cached posts', e);
-      }
-    }
-
-    if (!navigator.onLine) return;
-
-    try {
-      // Lazy delete expired job posts
-      const now = new Date().toISOString();
-      await withTimeout(supabase
-        .from('posts')
-        .delete()
-        .eq('post_type', 'Job Update')
-        .not('job_deadline', 'is', null)
-        .lt('job_deadline', now));
-
-      const { data, error } = await withTimeout(supabase
-        .from('posts')
-        .select('*, profiles(*)')
-        .order('created_at', { ascending: false })) as any;
-
-      if (!error && data) {
-        setPosts(data as Post[]);
-        localStorage.setItem('chem_posts', JSON.stringify(data));
-      }
-    } catch (err) {
-      console.error('Error fetching posts:', err);
-    }
-  };
 
   // Scroll to top when tab changes
   useEffect(() => {
@@ -636,94 +741,13 @@ export default function App() {
     }, 50);
   }, [activeTab]);
 
-  const handleCreatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !postContent.trim()) return;
-
-    setIsPosting(true);
-    
-    let pdfUrl = null;
-    if (postType === 'Job Update' && jobPdfFile) {
-      const fileExt = jobPdfFile.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${currentUser.id}/${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, jobPdfFile);
-        
-      if (!uploadError) {
-        const { data } = supabase.storage.from('documents').getPublicUrl(filePath);
-        pdfUrl = data.publicUrl;
-      }
-    }
-
-    const postData: any = {
-      author_id: currentUser.id,
-      content: postContent.trim(),
-      post_type: postType
-    };
-
-    if (postType === 'Job Update') {
-      if (jobLink) postData.job_link = jobLink;
-      if (pdfUrl) postData.job_pdf_url = pdfUrl;
-      if (jobDeadline) postData.job_deadline = new Date(jobDeadline).toISOString();
-    }
-
-    const { error } = await supabase
-      .from('posts')
-      .insert([postData]);
-
-    setIsPosting(false);
-    if (error) {
-      console.error('Error creating post:', error);
-      alert('Failed to create post. Make sure the posts table has the new job columns (job_link, job_pdf_url, job_deadline).');
-    } else {
-      setPostContent('');
-      setPostType('General');
-      setJobLink('');
-      setJobDeadline('');
-      setJobPdfFile(null);
-      if (jobPdfInputRef.current) jobPdfInputRef.current.value = '';
-      fetchPosts();
-    }
-  };
-
-  const handleUpdatePost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingPost) return;
-    
-    const { error } = await supabase
-      .from('posts')
-      .update({ content: editingPost.content })
-      .eq('id', editingPost.id);
-    
-    if (error) {
-      console.error('Error updating post:', error);
-      alert('Failed to update post.');
-    } else {
-      setEditingPost(null);
-      fetchPosts();
-    }
-  };
-
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const confirmDeletePost = async () => {
-    if (!postToDelete) return;
-    const { error } = await supabase.from('posts').delete().eq('id', postToDelete);
-    if (error) {
-      console.error('Error deleting post:', error);
-      alert('Failed to delete post.');
-    } else {
-      fetchPosts();
-    }
-    setPostToDelete(null);
-  };
+  const confirmDeletePost = async () => {}; // Removed for posts removal
 
   const filteredProfiles = useMemo(() => {
     return profiles.filter(profile => {
@@ -900,7 +924,7 @@ export default function App() {
 
     if (error) {
       console.error('Error saving profile:', error);
-      alert('Failed to save profile. Make sure the table schema is updated.');
+      alert(`Failed to save profile: ${error.message || 'Unknown error'}. Please ensure all database columns are created correctly in Supabase.`);
     } else {
       fetchProfiles();
       setIsEditingProfile(false);
@@ -946,34 +970,99 @@ export default function App() {
     e.preventDefault();
     if (!currentUser || !eventForm.title || !eventForm.event_date) return;
     setIsCreatingEvent(true);
-    const { error } = await supabase.from('events').insert([{
-      title: eventForm.title,
-      description: eventForm.description,
-      event_type: eventForm.event_type,
-      event_date: eventForm.event_date,
-      location: eventForm.location,
-      created_by: currentUser.id
-    }]);
-    setIsCreatingEvent(false);
-    if (!error) {
+    
+    try {
+      let imageUrl = '';
+      if (eventImageFile) {
+        const fileExt = eventImageFile.name.split('.').pop();
+        const fileName = `event_${Date.now()}.${fileExt}`;
+        const filePath = `events/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('post-images')
+          .upload(filePath, eventImageFile);
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('post-images')
+          .getPublicUrl(filePath);
+        imageUrl = publicUrl;
+      }
+
+      const { error } = await supabase.from('alumni_events').insert([{
+        title: eventForm.title,
+        description: eventForm.description,
+        event_type: eventForm.event_type,
+        event_date: eventForm.event_date,
+        location: eventForm.location,
+        author_id: currentUser.id,
+        custom_fields: eventFormQuestions,
+        image_url: imageUrl
+      }]);
+
+      if (error) throw error;
+
       setEventForm({ title: '', description: '', event_type: 'Reunion', event_date: '', location: '' });
+      setEventFormQuestions([]);
+      setEventImageFile(null);
       setShowEventForm(false);
       fetchEvents();
-    } else {
-      alert('Failed to create event.');
+    } catch (error: any) {
+      console.error("Error creating event:", error);
+      alert('Failed to create event: ' + error.message);
+    } finally {
+      setIsCreatingEvent(false);
     }
   };
 
-  const handleRSVP = async (eventId: string, status: 'Going' | 'Maybe') => {
+  const handleRSVP = async (eventId: string, status: 'Going' | 'Maybe', answers: Record<string, string> = {}) => {
     if (!currentUser) return;
+    setIsSubmittingRSVP(true);
     const { error } = await supabase.from('event_rsvps').upsert([{
       event_id: eventId,
       user_id: currentUser.id,
-      status
+      status,
+      answers
     }], { onConflict: 'event_id,user_id' });
+    setIsSubmittingRSVP(false);
     if (!error) {
+      setRsvpEvent(null);
+      setRsvpAnswers({});
       fetchEvents();
+    } else {
+      console.error("Error with RSVP:", error);
+      alert("Failed to RSVP: " + error.message);
     }
+  };
+
+  const initiateRSVP = (event: AppEvent, status: 'Going' | 'Maybe') => {
+    if (status === 'Going' && event.custom_fields && event.custom_fields.length > 0) {
+      setRsvpEvent(event);
+      setRsvpAnswers({});
+    } else {
+      handleRSVP(event.id, status);
+    }
+  };
+
+  const loadEventResponses = async (event: AppEvent) => {
+    setViewResponsesEvent(event);
+    setIsLoadingResponses(true);
+    const { data, error } = await supabase
+      .from('event_rsvps')
+      .select('*, profiles(*)')
+      .eq('event_id', event.id)
+      .eq('status', 'Going');
+    
+    if (!error && data) {
+      setEventResponses(data);
+    } else {
+      console.error("Error loading responses:", error);
+      alert("Failed to load registration details.");
+    }
+    setIsLoadingResponses(false);
   };
 
   const toggleBookmark = async (profileId: string) => {
@@ -1006,7 +1095,7 @@ export default function App() {
     // Title
     doc.setFontSize(24);
     doc.setTextColor(255, 255, 255); // White
-    doc.text('Bondhon Directory', 14, 22);
+    doc.text('ChemConnect Directory', 14, 22);
     
     // Subtitle
     doc.setFontSize(12);
@@ -1076,7 +1165,7 @@ export default function App() {
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184); // Slate 400
       doc.text(
-        `Page ${i} of ${pageCount} - Bondhon Directory`,
+        `Page ${i} of ${pageCount} - ChemConnect Directory`,
         doc.internal.pageSize.width / 2,
         doc.internal.pageSize.height - 10,
         { align: 'center' }
@@ -1191,17 +1280,6 @@ export default function App() {
   const uniqueChemistryBatches = Array.from(new Set(profiles.map(p => p.chemistry_batch).filter(Boolean))).sort();
   const uniqueBloodGroups = Array.from(new Set(profiles.map(p => p.blood_group).filter(Boolean))).sort();
 
-  const getPostTypeIcon = (type: PostType) => {
-    switch (type) {
-      case 'Job Update': return <Briefcase size={16} className="text-blue-600" />;
-      case 'Advice': return <Lightbulb size={16} className="text-amber-600" />;
-      case 'Opportunity': return <Target size={16} className="text-green-600" />;
-      default: return <MessageSquare size={16} className="text-slate-600" />;
-    }
-  };
-
-  const isAdmin = currentUser?.email === 'fllimonm1212@gmail.com' || currentUser?.email === 'chembondhon@gmail.com' || profiles.find(p => p.id === currentUser?.id)?.role === 'admin';
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -1222,8 +1300,8 @@ export default function App() {
             transition={{ duration: 0.5 }}
             className="flex justify-center text-indigo-700"
           >
-            <div className="bg-white p-5 rounded-3xl shadow-2xl shadow-indigo-100/50 border border-indigo-50/50">
-               <FlaskConical size={56} className="text-indigo-600" />
+            <div className="bg-white p-2 rounded-3xl shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 w-24 h-24 flex items-center justify-center">
+               <img src={heroImageUrl || defaultHeroImage} alt="Logo" className="w-full h-full object-cover rounded-2xl" />
             </div>
           </motion.div>
           <motion.h2 
@@ -1232,7 +1310,7 @@ export default function App() {
             transition={{ delay: 0.2 }}
             className="mt-8 text-center text-4xl font-extrabold text-slate-900 tracking-tight font-display"
           >
-            Bondhon
+            ChemConnect
           </motion.h2>
           <motion.p 
             initial={{ y: 20, opacity: 0 }}
@@ -1240,7 +1318,7 @@ export default function App() {
             transition={{ delay: 0.3 }}
             className="mt-2 text-center text-sm text-slate-500 font-medium"
           >
-            Chemistry Dept, University of Rajshahi
+            Chemistry Alumni & Student Network
           </motion.p>
         </div>
 
@@ -1254,7 +1332,7 @@ export default function App() {
             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
             <div className="relative z-10">
               <h3 className="text-2xl font-black text-slate-900 mb-8 text-center tracking-tight">
-                {authMode === 'login' ? 'Welcome Back' : 'Join the Bondhon'}
+                {authMode === 'login' ? 'Welcome Back' : 'Join ChemConnect'}
               </h3>
             
             {authError && (
@@ -1354,9 +1432,9 @@ export default function App() {
                   repeat: Infinity, 
                   ease: "easeInOut" 
                 }}
-                className="bg-gradient-to-br from-white/20 to-white/5 p-2.5 rounded-2xl text-white shadow-lg shadow-black/10 border border-white/20 relative overflow-hidden"
+                className="bg-gradient-to-br from-white/20 to-white/5 p-1 rounded-2xl text-white shadow-lg shadow-black/10 border border-white/20 relative overflow-hidden w-14 h-14 shrink-0 flex items-center justify-center"
               >
-                <Atom size={28} className="relative z-10" />
+                <img src={heroImageUrl || defaultHeroImage} alt="Logo" className="w-full h-full object-cover rounded-xl relative z-10" />
                 <motion.div 
                   animate={{ y: [20, -20] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
@@ -1364,13 +1442,13 @@ export default function App() {
                 />
               </motion.div>
               <div>
-                <h1 className="text-2xl font-extrabold tracking-tight font-display text-white">Department of<br/><span className="text-3xl">Chemistry</span></h1>
+                <h1 className="text-2xl font-extrabold tracking-tight font-display text-white">ChemConnect<br/><span className="text-sm opacity-60 uppercase tracking-widest">Alumni & Student Hub</span></h1>
               </div>
             </div>
             
             <div className="hidden md:flex items-center space-x-1 bg-white/10 p-1.5 rounded-2xl border border-white/10 relative">
               {[
-                { id: 'feed', icon: Home, label: 'Home' },
+                { id: 'feed', icon: LayoutGrid, label: 'Feed' },
                 { id: 'directory', icon: Users, label: 'Directory' },
                 { id: 'messages', icon: MessageSquare, label: 'Messages' },
                 { id: 'events', icon: Calendar, label: 'Events' },
@@ -1458,7 +1536,9 @@ export default function App() {
           Tip: Ensure your Supabase URL and Anon Key are correctly configured in the AI Studio <b>Secrets</b> panel or <b>.env</b> file.
         </p>
         <div className="mt-3 bg-white p-3 rounded border border-amber-200 overflow-x-auto text-xs font-mono text-slate-800">
-                <pre>{`-- Run this in Supabase SQL Editor:
+                <pre>{`-- SQL MASTER SETUP (Run this in Supabase SQL Editor)
+
+-- 1. Profiles table
 create table if not exists profiles (
   id uuid references auth.users on delete cascade primary key,
   name text not null,
@@ -1482,41 +1562,106 @@ create table if not exists profiles (
   is_public boolean default true,
   role text default 'user',
   verification_status text default 'none',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default now()
 );
 
--- Run this to add new columns if profile table exists:
--- alter table profiles add column if not exists student_id text;
--- alter table profiles add column if not exists is_phone_private boolean default false;
--- alter table profiles add column if not exists verification_status text default 'none';
-
+-- 2. News Feed (Posts)
 create table if not exists posts (
   id uuid default gen_random_uuid() primary key,
   author_id uuid references profiles(id) on delete cascade not null,
   content text not null,
-  post_type text not null,
-  job_link text,
-  job_pdf_url text,
-  job_deadline timestamp with time zone,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  image_url text,
+  likes text[] default '{}',
+  comments jsonb[] default '{}',
+  created_at timestamp with time zone default now()
 );
 
--- Run these if the posts table already exists to add the new columns:
--- alter table posts add column if not exists job_link text;
--- alter table posts add column if not exists job_pdf_url text;
--- alter table posts add column if not exists job_deadline timestamp with time zone;
+-- 3. Events
+create table if not exists alumni_events (
+  id uuid default gen_random_uuid() primary key,
+  author_id uuid references profiles(id) on delete cascade not null,
+  title text not null,
+  description text not null,
+  event_type text not null,
+  event_date timestamp with time zone not null,
+  location text not null,
+  image_url text,
+  custom_fields jsonb default '[]'::jsonb,
+  created_at timestamp with time zone default now()
+);
 
--- Storage bucket for avatars (if not exists)
+-- 3.1 Event RSVPs
+create table if not exists event_rsvps (
+  event_id uuid references alumni_events(id) on delete cascade not null,
+  user_id uuid references profiles(id) on delete cascade not null,
+  status text not null,
+  answers jsonb default '{}'::jsonb,
+  created_at timestamp with time zone default now(),
+  primary key (event_id, user_id)
+);
+
+-- 4. Site Config
+create table if not exists site_config (
+  key text primary key,
+  value text not null,
+  updated_at timestamp with time zone default now()
+);
+
+-- 5. Bookmarks
+create table if not exists bookmarks (
+  user_id uuid references profiles(id) on delete cascade not null,
+  profile_id uuid references profiles(id) on delete cascade not null,
+  created_at timestamp with time zone default now(),
+  primary key (user_id, profile_id)
+);
+
+-- 6. Storage Buckets & Policies
 insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict do nothing;
-create policy "Avatar images are publicly accessible." on storage.objects for select using (bucket_id = 'avatars');
-create policy "Anyone can upload an avatar." on storage.objects for insert with check (bucket_id = 'avatars');
-create policy "Anyone can update their avatar." on storage.objects for update with check (bucket_id = 'avatars');
+insert into storage.buckets (id, name, public) values ('post-images', 'post-images', true) on conflict do nothing;
 
--- Storage bucket for documents (if not exists)
-insert into storage.buckets (id, name, public) values ('documents', 'documents', true) on conflict do nothing;
-create policy "Document files are publicly accessible." on storage.objects for select using (bucket_id = 'documents');
-create policy "Anyone can upload a document." on storage.objects for insert with check (bucket_id = 'documents');
-create policy "Anyone can update their document." on storage.objects for update with check (bucket_id = 'documents');`}</pre>
+create policy "Public Access" on storage.objects for select using (bucket_id = 'avatars' or bucket_id = 'post-images');
+create policy "Authenticated Upload" on storage.objects for insert with check (auth.role() = 'authenticated' and (bucket_id = 'avatars' or bucket_id = 'post-images'));
+create policy "Authenticated Update" on storage.objects for update with check (auth.role() = 'authenticated' and (bucket_id = 'avatars' or bucket_id = 'post-images'));
+
+-- Note: You may still need to enable RLS or set policies in the Storage UI if uploads fail.
+
+-- 7. Security (RLS Policies)
+-- First drop existing policies to avoid "already exists" errors
+drop policy if exists "profiles_all" on profiles;
+drop policy if exists "profiles_self" on profiles;
+drop policy if exists "posts_all" on posts;
+drop policy if exists "posts_write" on posts;
+drop policy if exists "posts_owner" on posts;
+drop policy if exists "events_all" on alumni_events;
+drop policy if exists "events_admin" on alumni_events;
+drop policy if exists "rsvps_all" on event_rsvps;
+drop policy if exists "rsvps_owner" on event_rsvps;
+drop policy if exists "bookmarks_owner" on bookmarks;
+
+alter table profiles enable row level security;
+create policy "profiles_all" on profiles for select using (true);
+create policy "profiles_self" on profiles for all using (auth.uid() = id);
+
+alter table posts enable row level security;
+create policy "posts_all" on posts for select using (true);
+create policy "posts_write" on posts for insert with check (auth.uid() = author_id);
+create policy "posts_owner" on posts for all using (auth.uid() = author_id);
+
+alter table site_config enable row level security;
+create policy "config_all" on site_config for select using (true);
+create policy "config_admin" on site_config for all using (true);
+
+alter table alumni_events enable row level security;
+create policy "events_all" on alumni_events for select using (true);
+create policy "events_admin" on alumni_events for all using (true);
+
+alter table event_rsvps enable row level security;
+create policy "rsvps_all" on event_rsvps for select using (true);
+create policy "rsvps_owner" on event_rsvps for all using (auth.uid() = user_id);
+
+alter table bookmarks enable row level security;
+create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id);
+`}</pre>
               </div>
             </div>
           </div>
@@ -1527,7 +1672,7 @@ create policy "Anyone can update their document." on storage.objects for update 
       <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 z-40 pb-safe shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.05)]">
         <div className="flex overflow-x-auto hide-scrollbar px-2">
           {[
-            { id: 'feed', icon: Home, label: 'Feed' },
+            { id: 'feed', icon: LayoutGrid, label: 'Home' },
             { id: 'directory', icon: Users, label: 'Directory' },
             { id: 'messages', icon: MessageSquare, label: 'Messages' },
             { id: 'events', icon: Calendar, label: 'Events' },
@@ -1566,273 +1711,284 @@ create policy "Anyone can update their document." on storage.objects for update 
         <AnimatePresence mode="wait">
           {/* FEED TAB */}
           {activeTab === 'feed' && (
-            <motion.div 
+            <motion.div
               key="feed"
-              initial={{ opacity: 0, x: -20 }} 
-              animate={{ opacity: 1, x: 0 }} 
-              exit={{ opacity: 0, x: 20 }} 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="max-w-5xl mx-auto space-y-6"
+              className="space-y-8"
             >
-            
-            {/* Hero Section */}
-            <div className="mb-12 text-center relative z-10 pt-4">
-              <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-display mb-4 drop-shadow-md">
-                Connect, Network & Grow with Our<br/>
-                <span className="text-yellow-300">Chemistry Family</span>
-              </h2>
-              
-              {/* Search Bar */}
-              <div className="max-w-3xl mx-auto mt-8 bg-white/10 backdrop-blur-md p-2 rounded-2xl sm:rounded-full flex flex-col sm:flex-row items-center gap-2 border border-white/20 shadow-xl">
-                <div className="relative flex-1 w-full">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-white/70" />
+              {/* Hero Section */}
+              <div className="relative rounded-[2.5rem] overflow-hidden bg-indigo-900 premium-shadow">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-indigo-900 to-slate-900"></div>
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+                <div className="relative z-10 p-8 sm:p-12 lg:p-16 flex flex-col md:flex-row items-center gap-12">
+                  <div className="flex-1 text-center md:text-left">
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="inline-flex items-center space-x-2 bg-indigo-500/30 backdrop-blur-md px-4 py-2 rounded-full border border-indigo-400/30 mb-6"
+                    >
+                      <Sparkles size={16} className="text-indigo-200" />
+                      <span className="text-xs font-black uppercase tracking-[0.2em] text-indigo-100 italic">Official Alumni Network</span>
+                    </motion.div>
+                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.9] tracking-tighter mb-6 underline-offset-8 decoration-indigo-500/50">
+                      Welcome Home, <br />
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-100">Alumni & Students</span>
+                    </h1>
+                    <p className="text-lg text-indigo-100/70 font-medium max-w-xl leading-relaxed mb-10">
+                      Stay connected with your classmates, share opportunities, and keep the Spirit of Chemistry alive across generations.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-4 justify-center md:justify-start">
+                      <button 
+                        onClick={() => setActiveTab('directory')}
+                        className="px-8 py-4 bg-white text-indigo-900 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-xl shadow-indigo-950/20 active:scale-95"
+                      >
+                        Explore Directory
+                      </button>
+                      <button 
+                         onClick={() => setActiveTab('events')}
+                        className="px-8 py-4 bg-indigo-500/20 backdrop-blur-md text-white border border-white/20 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-500/30 transition-all active:scale-95"
+                      >
+                        Find Events
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Search by name, batch, location, company..."
-                    className="block w-full pl-12 pr-4 py-3 bg-white/10 border-none rounded-xl sm:rounded-full text-white placeholder-white/70 focus:ring-2 focus:ring-white/50 outline-none transition-all text-sm font-medium"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        setActiveTab('directory');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }
-                    }}
-                  />
-                </div>
-                <button 
-                  onClick={() => {
-                    setActiveTab('directory');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="w-full sm:w-auto bg-[#1e3a8a] text-white px-8 py-3 rounded-xl sm:rounded-full font-bold text-sm hover:bg-blue-800 transition-all shadow-lg"
-                >
-                  Search
-                </button>
-              </div>
-
-              {/* Quick Links */}
-              <div className="flex flex-wrap justify-center gap-3 mt-6">
-                <button onClick={() => { setActiveTab('directory'); setFilterStatus('Student'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
-                  <Users size={14} className="mr-2 text-blue-600" /> Find Students
-                </button>
-              </div>
-
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mt-10 max-w-md mx-auto">
-                <div className="bg-indigo-600/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/20 transition-all duration-300 cursor-default">
-                  <div className="bg-white/20 p-3 rounded-xl mr-4">
-                    <Users className="text-white" size={24} />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Total Students</div>
-                    <div className="text-white text-2xl font-black">{profiles.length}+</div>
+                  <div className="flex-1 hidden md:block relative group">
+                    <div className="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full scale-125 transition-transform group-hover:scale-150 duration-1000"></div>
+                    <img 
+                      src={heroImageUrl || defaultHeroImage} 
+                      alt="ChemConnect Network" 
+                      className="relative z-10 w-full aspect-square object-cover rounded-[3rem] shadow-2xl rotate-3 group-hover:rotate-0 transition-all duration-700"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="max-w-3xl mx-auto space-y-6">
-            {/* Create Post Box */}
-            <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow relative overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <form onSubmit={handleCreatePost} className="relative z-10">
-                <div className="flex items-start space-x-4">
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
-                    {formData.avatar_url ? (
-                      <img src={formData.avatar_url} alt="" className="h-full w-full rounded-2xl object-cover" />
-                    ) : (
-                      <UserIcon size={24} />
-                    )}
-                  </div>
-                  <textarea
-                    className="w-full border-none focus:ring-0 resize-none text-slate-800 placeholder-slate-400 text-lg bg-transparent outline-none py-2"
-                    rows={3}
-                    placeholder="What's on your mind, Chemist?"
-                    value={postContent}
-                    onChange={(e) => setPostContent(e.target.value)}
-                  />
-                </div>
-                
-                {postType === 'Job Update' && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    className="mt-6 space-y-4 bg-slate-50/50 backdrop-blur-sm p-5 rounded-2xl border border-slate-100"
+              {/* Quick Navigation Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  { label: 'Total Alumni', count: profiles.length, icon: Users, color: 'indigo', action: () => setActiveTab('directory') },
+                  { label: 'Upcoming Events', count: events.length, icon: Calendar, color: 'blue', action: () => setActiveTab('events') },
+                  { label: 'Saved Contacts', count: bookmarks.size, icon: Bookmark, color: 'slate', action: () => setActiveTab('saved') }
+                ].map((stat, idx) => (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 * idx }}
+                    onClick={stat.action}
+                    className="glass-card p-8 rounded-[2rem] premium-shadow premium-hover cursor-pointer relative overflow-hidden group"
                   >
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Job Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">Application Link</label>
-                        <input
-                          type="url"
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                          placeholder="https://..."
-                          value={jobLink}
-                          onChange={(e) => setJobLink(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">Deadline</label>
-                        <input
-                          type="date"
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                          value={jobDeadline}
-                          onChange={(e) => setJobDeadline(e.target.value)}
-                        />
-                      </div>
+                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] group-hover:scale-110 transition-transform duration-1000"></div>
+                    <div className={`p-4 bg-${stat.color}-50 text-${stat.color}-600 rounded-2xl w-fit mb-6 shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all`}>
+                      <stat.icon size={28} />
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{stat.label}</h4>
+                      <p className="text-4xl font-black text-slate-900 tracking-tighter">{stat.count}</p>
+                    </div>
+                    <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                      <ArrowRight className={`text-${stat.color}-400`} size={24} />
                     </div>
                   </motion.div>
-                )}
+                ))}
+              </div>
 
-                <div className="mt-6 pt-6 border-t border-slate-100 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={!postContent.trim() || isPosting}
-                    className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-indigo-100 premium-button"
+              {/* Announcement Banner */}
+              <div className="glass-card p-6 sm:p-10 rounded-[2.5rem] premium-shadow border-slate-100 relative overflow-hidden bg-white">
+                <div className="absolute inset-0 opacity-[0.02] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+                <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                  <div className="p-5 bg-amber-50 rounded-3xl text-amber-600 shadow-sm">
+                    <ShieldCheck size={40} />
+                  </div>
+                  <div className="flex-1 text-center md:text-left">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2 uppercase italic">Verified Network</h3>
+                    <p className="text-slate-600 font-medium leading-relaxed max-w-2xl">
+                      Welcome to the official alumni platform for RU Chemistry students. Our goal is to create a secure space for all past and present students to connect and support each other.
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('profile')}
+                    className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-800 transition-all shadow-xl active:scale-95"
                   >
-                    {isPosting ? 'Publishing...' : 'Publish Post'}
+                    Verify Profile
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
 
-            {/* Post Filters */}
-            <div className="flex overflow-x-auto hide-scrollbar pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 gap-2">
-              <button
-                onClick={() => setPostFilter('All')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
-                  postFilter === 'All' 
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' 
-                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
-                }`}
-              >
-                All Posts
-              </button>
-              {POST_TYPES.map(type => (
-                <button
-                  key={type}
-                  onClick={() => setPostFilter(type)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
-                    postFilter === type 
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' 
-                      : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+              {/* NEWS FEED SECTION */}
+              {isFeedEnabled && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between px-4">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase italic">Community Feed</h3>
+                    <button className="text-xs font-black text-indigo-600 uppercase tracking-widest hover:underline">View All Updates</button>
+                  </div>
+                  
+                  {/* Create Post Card */}
+                  {currentUser && (
+                    <div className="glass-card p-6 rounded-[2rem] premium-shadow border-slate-100 bg-white">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 overflow-hidden">
+                        {formData.avatar_url ? (
+                          <img src={formData.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <UserIcon size={24} />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-4">
+                        <textarea
+                          placeholder="Share something with the alumni network..."
+                          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-medium min-h-[100px] resize-none"
+                          value={newPostContent}
+                          onChange={(e) => setNewPostContent(e.target.value)}
+                        />
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                             <input 
+                               type="file" 
+                               ref={postImageInputRef} 
+                               className="hidden" 
+                               accept="image/*"
+                               onChange={(e) => setPostImageFile(e.target.files?.[0] || null)}
+                             />
+                             <button 
+                               onClick={() => postImageInputRef.current?.click()}
+                               className={`p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${postImageFile ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : ''}`}
+                             >
+                               <Camera size={16} />
+                               {postImageFile ? 'Photo Selected' : 'Add Photo'}
+                             </button>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (!newPostContent.trim()) return;
+                              setIsCreatingPost(true);
+                              let imageUrl = '';
+                              
+                              if (postImageFile) {
+                                const fileExt = postImageFile.name.split('.').pop();
+                                const fileId = Math.random().toString(36).substring(7);
+                                const filePath = `posts/${fileId}_${Date.now()}.${fileExt}`;
+                                
+                                const { error: uploadError } = await supabase.storage
+                                  .from('post-images')
+                                  .upload(filePath, postImageFile);
+                                
+                                if (!uploadError) {
+                                  const { data: { publicUrl } } = supabase.storage
+                                    .from('post-images')
+                                    .getPublicUrl(filePath);
+                                  imageUrl = publicUrl;
+                                }
+                              }
 
-            {/* Posts Feed */}
-            <div className="space-y-6">
-              {posts.filter(post => postFilter === 'All' || post.post_type === postFilter).map(post => {
-                const author = post.profiles || profiles.find(p => p.id === post.author_id);
-                return (
-                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow premium-hover overflow-hidden group hover:border-indigo-400/50 hover:shadow-indigo-900/5 transition-all duration-500 relative">
-                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                    <div className="p-4 sm:p-6 relative z-10">
-                      <div className="flex items-start justify-between mb-6">
-                        <div className="flex items-center space-x-4 cursor-pointer" onClick={() => author && setSelectedProfile(author)}>
-                          {author?.avatar_url ? (
-                            <div className="relative">
-                              <img src={author.avatar_url} alt={author.name} className="h-14 w-14 rounded-2xl object-cover border-2 border-white shadow-md" />
-                              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                                <div className="w-3 h-3 rounded-full bg-green-500 border-2 border-white"></div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-500 flex items-center justify-center font-bold text-xl border-2 border-white shadow-md">
-                              {author?.name?.charAt(0).toUpperCase() || '?'}
-                            </div>
-                          )}
-                          <div>
-                            <h4 className="font-bold text-slate-900 hover:text-indigo-700 transition-colors flex items-center text-base">
-                              {author?.name || 'Unknown User'}
-                              <UserBadges profile={author} size={18} />
-                            </h4>
-                            <div className="flex items-center text-xs font-medium text-slate-400 space-x-2 mt-0.5">
-                              <span className="bg-slate-100 px-2 py-0.5 rounded-md text-slate-600">{author?.chemistry_batch ? `Batch ${author.chemistry_batch}` : 'N/A'}</span>
-                              <span>•</span>
-                              <span className="flex items-center">
-                                <Clock size={12} className="mr-1" />
-                                {formatDate(post.created_at)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <div className="flex items-center space-x-2 px-3 py-1.5 bg-slate-50/80 backdrop-blur-sm border border-slate-100 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                            {getPostTypeIcon(post.post_type)}
-                            <span>{post.post_type}</span>
-                          </div>
-                          {(currentUser?.id === post.author_id || isAdmin) && (
-                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {currentUser?.id === post.author_id && (
-                                <button 
-                                  onClick={() => setEditingPost(post)}
-                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                                  title="Edit Post"
-                                >
-                                  <Edit size={16} />
-                                </button>
-                              )}
-                              <button 
-                                onClick={() => setPostToDelete(post.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                title="Delete Post"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          )}
+                              const success = await createPost(newPostContent, imageUrl);
+                              if (success) {
+                                setNewPostContent('');
+                                setPostImageFile(null);
+                              }
+                              setIsCreatingPost(false);
+                            }}
+                            disabled={!newPostContent.trim() || isCreatingPost}
+                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200/50 disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {isCreatingPost ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                            Post Update
+                          </button>
                         </div>
                       </div>
-                      <p className="text-slate-700 whitespace-pre-wrap leading-relaxed text-[17px] font-medium">
-                        {post.content}
-                      </p>
-                      
-                      {post.post_type === 'Job Update' && (post.job_link || post.job_pdf_url || post.job_deadline) && (
-                        <div className="mt-6 p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-100 shadow-inner">
-                          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Opportunity Details</h5>
-                          <div className="flex flex-wrap gap-3">
-                            {post.job_link && (
-                              <a href={post.job_link} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-white font-bold bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-indigo-100 premium-button">
-                                <ExternalLink size={16} className="mr-2" />
-                                Apply Now
-                              </a>
-                            )}
-                            {post.job_pdf_url && (
-                              <a href={post.job_pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-rose-600 font-bold bg-rose-50 hover:bg-rose-100 px-5 py-2.5 rounded-xl transition-all border border-rose-100">
-                                <FileText size={16} className="mr-2" />
-                                Circular PDF
-                              </a>
-                            )}
-                            {post.job_deadline && (
-                              <div className="flex items-center text-sm text-amber-700 font-bold bg-amber-50 px-5 py-2.5 rounded-xl border border-amber-100">
-                                <Calendar size={16} className="mr-2" />
-                                Deadline: {new Date(post.job_deadline).toLocaleDateString()}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
-                );
-              })}
-              {posts.length === 0 && (
-                <div className="text-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200 border-dashed">
-                  <MessageSquare size={40} className="mx-auto mb-3 text-slate-300" />
-                  <p>No posts yet. Be the first to share something!</p>
+                )}
+
+                {/* Posts List */}
+                <div className="space-y-6">
+                  {posts.length === 0 ? (
+                    <div className="text-center py-20 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+                      <MessageSquare className="mx-auto text-slate-300 mb-4" size={48} />
+                      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No posts yet. Be the first to share!</p>
+                    </div>
+                  ) : (
+                    posts.map((post, idx) => (
+                      <motion.div
+                        key={post.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.1 * idx }}
+                        className="glass-card p-6 rounded-[2.5rem] premium-shadow bg-white border-slate-100 flex flex-col gap-6"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 overflow-hidden shrink-0 border border-indigo-100">
+                              {post.profiles?.avatar_url ? (
+                                <img src={post.profiles.avatar_url} alt={post.profiles.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-indigo-400 font-black text-xl">
+                                  {post.profiles?.name?.[0]}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-black text-slate-900 tracking-tight">{post.profiles?.name || 'Anonymous Alumni'}</h4>
+                                <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  Batch {post.profiles?.chemistry_batch || 'N/A'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(post.created_at).toLocaleDateString()} • {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                          {currentUser?.id === post.author_id && (
+                            <button 
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this post?')) {
+                                  deletePost(post.id);
+                                }
+                              }}
+                              className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">
+                          {post.content}
+                        </div>
+
+                        {post.image_url && (
+                          <div className="rounded-3xl overflow-hidden border border-slate-100 shadow-sm transition-transform hover:scale-[1.01] duration-500">
+                            <img 
+                              src={post.image_url} 
+                              alt="Post" 
+                              className="w-full h-auto max-h-[500px] object-cover" 
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        )}
+
+                        <div className="pt-4 border-t border-slate-50 flex items-center gap-6">
+                           <button className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 text-[10px] font-black uppercase tracking-widest transition-colors">
+                             <CheckCircle size={18} className="text-slate-300" />
+                             Useful ({post.likes?.length || 0})
+                           </button>
+                           <button className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 text-[10px] font-black uppercase tracking-widest transition-colors">
+                             <MessageSquare size={18} className="text-slate-300" />
+                             Comment ({post.comments?.length || 0})
+                           </button>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
+              </div>
               )}
-            </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
 
           {/* DIRECTORY TAB */}
           {activeTab === 'directory' && (
@@ -1940,7 +2096,12 @@ create policy "Anyone can update their document." on storage.objects for update 
             </div>
 
             <div className="space-y-16">
-              {viewMode === 'grid' ? (
+              {filteredProfiles.length === 0 ? (
+                <div className="text-center py-20 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200">
+                  <Database className="mx-auto text-slate-300 mb-4" size={48} />
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No members found in directory.</p>
+                </div>
+              ) : viewMode === 'grid' ? (
                 groupedProfiles.map(([batch, profilesInBatch]) => (
                   <div key={batch} className="space-y-8 relative">
                     <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent -mx-4 sm:-mx-8 px-4 sm:px-8 pt-12 -mt-12 rounded-[3rem] -z-10 border-t border-indigo-100/50"></div>
@@ -1993,7 +2154,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                               <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
                               <div className="-mt-16 mb-4 relative">
                                 {profile.avatar_url ? (
-                                  <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-contain shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                                  <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
                                 ) : (
                                   <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
                                     {profile.name?.charAt(0).toUpperCase()}
@@ -2075,7 +2236,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                               {/* Watermark for download */}
                               <div className="download-watermark hidden absolute bottom-4 right-4 items-center space-x-2 opacity-20 pointer-events-none">
                                 <Atom size={24} className="text-indigo-900" />
-                                <span className="font-black text-indigo-900 tracking-widest uppercase text-sm">Bondhon</span>
+                                <span className="font-black text-indigo-900 tracking-widest uppercase text-sm">ChemConnect</span>
                               </div>
                             </div>
                           </motion.div>
@@ -2101,7 +2262,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
                         <div className="relative shrink-0 z-10">
                           {profile.avatar_url ? (
-                            <img src={profile.avatar_url} alt={profile.name} className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-white object-contain shadow-md group-hover:scale-105 transition-transform duration-500" />
+                            <img src={profile.avatar_url} alt={profile.name} className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-white object-cover shadow-md group-hover:scale-105 transition-transform duration-500" />
                           ) : (
                             <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-3xl font-black shadow-md group-hover:scale-105 transition-transform duration-500">
                               {profile.name?.charAt(0).toUpperCase()}
@@ -2184,18 +2345,19 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
                   <Hexagon className="absolute -right-10 -top-10 w-64 h-64 text-white opacity-5 rotate-12" />
                   <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-indigo-300 opacity-10" />
-                  <div className="absolute -bottom-16 left-10 group z-10">
+                </div>
+                
+                <div className="pt-20 px-10 pb-10 relative">
+                  <div className="absolute -top-16 left-10 group z-10">
                     {formData.avatar_url ? (
-                      <img src={formData.avatar_url} alt={formData.name} className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-white object-contain shadow-2xl group-hover:scale-105 transition-transform duration-500" />
+                      <img src={formData.avatar_url} alt={formData.name} className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-white object-cover shadow-2xl group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-bold shadow-2xl group-hover:scale-105 transition-transform duration-500">
                         {formData.name?.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
-                </div>
-                
-                <div className="pt-20 px-10 pb-10">
+
                   {/* Verification Status Banner (View Mode) */}
                   <div className="mb-10 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 shadow-inner">
                     <div className="flex items-center space-x-5">
@@ -2408,7 +2570,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12" />
                   <div className="relative z-10">
                     <h2 className="text-3xl font-black text-white tracking-tight">Edit Profile</h2>
-                    <p className="text-indigo-100 mt-1 font-medium">Update your information in the Bondhon directory.</p>
+                    <p className="text-indigo-100 mt-1 font-medium">Update your information in the ChemConnect directory.</p>
                   </div>
                   <div className="flex items-center space-x-3 mt-4 sm:mt-0 relative z-10">
                     <button
@@ -2728,6 +2890,78 @@ create policy "Anyone can update their document." on storage.objects for update 
                           />
                         </div>
                       </div>
+                      
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Event Banner Image (Optional)</label>
+                        <div 
+                          onClick={() => eventImageInputRef.current?.click()}
+                          className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative group ${
+                            eventImageFile ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-slate-100'
+                          }`}
+                        >
+                          <input 
+                            type="file" 
+                            ref={eventImageInputRef} 
+                            className="hidden" 
+                            accept="image/*"
+                            onChange={(e) => setEventImageFile(e.target.files?.[0] || null)}
+                          />
+                          {eventImageFile ? (
+                            <>
+                              <img 
+                                src={URL.createObjectURL(eventImageFile)} 
+                                alt="Event preview" 
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                                <Camera size={24} className="mb-2" />
+                                <span className="text-xs font-bold uppercase tracking-widest">Change Image</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="text-center p-6">
+                              <Camera className="mx-auto text-slate-400 mb-3" size={32} />
+                              <p className="text-sm font-bold text-slate-500">Click to upload event banner</p>
+                              <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">JPG, PNG up to 5MB</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mb-6 space-y-4">
+                        <div className="flex items-center justify-between pointer-events-none">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Registration Questions (Optional)</label>
+                          <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full">Pro Feature</span>
+                        </div>
+                        <div className="space-y-3">
+                          {eventFormQuestions.map((q, idx) => (
+                            <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl">
+                              <input 
+                                type="text"
+                                className="w-full bg-transparent border-none focus:ring-0 text-sm font-medium"
+                                value={q}
+                                onChange={(e) => {
+                                  const newQ = [...eventFormQuestions];
+                                  newQ[idx] = e.target.value;
+                                  setEventFormQuestions(newQ);
+                                }}
+                                placeholder="Enter your question... (e.g. T-Shirt Size?)"
+                              />
+                              <button type="button" onClick={() => setEventFormQuestions(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+                          <button 
+                            type="button" 
+                            onClick={() => setEventFormQuestions(prev => [...prev, ''])}
+                            className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold text-sm hover:border-indigo-300 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2"
+                          >
+                            + Add Custom Question
+                          </button>
+                        </div>
+                      </div>
+                      
                       <button
                         type="submit"
                         disabled={isCreatingEvent}
@@ -2755,6 +2989,19 @@ create policy "Anyone can update their document." on storage.objects for update 
                     className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow premium-hover overflow-hidden flex flex-col border-slate-100 group relative"
                   >
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                    
+                    {event.image_url && (
+                      <div className="h-48 w-full relative overflow-hidden shrink-0">
+                        <img 
+                          src={event.image_url} 
+                          alt={event.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
+                      </div>
+                    )}
+
                     <div className="p-5 sm:p-8 flex-grow relative z-10">
                       <div className="flex justify-between items-start mb-6">
                         <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-700 border border-indigo-100">
@@ -2787,6 +3034,11 @@ create policy "Anyone can update their document." on storage.objects for update 
                             <span className="truncate">{event.location}</span>
                           </div>
                         )}
+                        {event.custom_fields && event.custom_fields.length > 0 && (
+                          <div className="flex items-center text-xs font-black text-indigo-500 bg-indigo-50 p-3 rounded-2xl border border-indigo-100">
+                            <FileText size={16} className="mr-2" /> Requires Registration Form
+                          </div>
+                        )}
                       </div>
                       
                       {event.description && (
@@ -2816,28 +3068,38 @@ create policy "Anyone can update their document." on storage.objects for update 
                         </div>
                       </div>
                       
-                      <div className="flex space-x-2 w-full sm:w-auto">
-                        <button 
-                          onClick={() => handleRSVP(event.id, 'Maybe')} 
-                          className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                            isMaybe 
-                              ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          Maybe
-                        </button>
-                        <button 
-                          onClick={() => handleRSVP(event.id, 'Going')} 
-                          className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center ${
-                            isGoing 
-                              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          {isGoing && <CheckCircle size={14} className="mr-2" />} 
-                          {isGoing ? 'Going' : 'I\'m Going'}
-                        </button>
+                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+                        <div className="flex space-x-2">
+                          <button 
+                            onClick={() => initiateRSVP(event, 'Maybe')} 
+                            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                              isMaybe 
+                                ? 'bg-amber-100 text-amber-700 border border-amber-200' 
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            Maybe
+                          </button>
+                          <button 
+                            onClick={() => initiateRSVP(event, 'Going')} 
+                            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center ${
+                              isGoing 
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isGoing && <CheckCircle size={14} className="mr-2" />} 
+                            {isGoing ? 'Going' : 'I\'m Going'}
+                          </button>
+                        </div>
+                        {(isAdmin || event.author_id === currentUser?.id) && (
+                          <button 
+                            onClick={() => loadEventResponses(event)}
+                            className="w-full text-xs font-black text-indigo-600 uppercase tracking-widest hover:bg-indigo-50 py-2 rounded-lg transition-colors border border-transparent hover:border-indigo-100 text-center"
+                          >
+                            View Submissions
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -2907,7 +3169,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10 mt-14"></div>
                     <div className="relative mb-4">
                       {profile.avatar_url ? (
-                        <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-[2rem] object-contain border-[6px] border-white bg-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                        <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-[2rem] object-cover border-[6px] border-white bg-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
                       ) : (
                         <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black border-[6px] border-white shadow-xl group-hover:scale-105 transition-transform duration-500">
                           {profile.name.charAt(0).toUpperCase()}
@@ -2975,7 +3237,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   {/* Watermark for download */}
                   <div className="download-watermark hidden absolute bottom-4 right-4 items-center space-x-2 opacity-20 pointer-events-none">
                     <Atom size={24} className="text-indigo-900" />
-                    <span className="font-black text-indigo-900 tracking-widest uppercase text-sm">Bondhon</span>
+                    <span className="font-black text-indigo-900 tracking-widest uppercase text-sm">ChemConnect</span>
                   </div>
                 </motion.div>
               ))}
@@ -3063,16 +3325,6 @@ create policy "Anyone can update their document." on storage.objects for update 
                 <div className="relative z-10">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Members</p>
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.length}</h3>
-                </div>
-              </motion.div>
-              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm relative z-10">
-                  <MessageSquare size={32} />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Posts</p>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
                 </div>
               </motion.div>
               <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
@@ -3276,7 +3528,107 @@ create policy "Anyone can update their document." on storage.objects for update 
                 </div>
               </div>
             </div>
+
+            {/* Site Configuration (Hero Image) */}
+            <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 mt-8 sm:mt-12 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="relative z-10">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="p-3 bg-amber-500 text-white rounded-2xl">
+                    <Camera size={24} />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Hero Image Management</h3>
+                </div>
+                
+                <div className="flex flex-col lg:flex-row gap-10 items-center">
+                  <div className="w-full lg:w-1/3">
+                    <div className="relative rounded-[2rem] overflow-hidden shadow-2xl aspect-video border-4 border-white bg-slate-100">
+                      <img src={heroImageUrl} alt="Current Hero" className="w-full h-full object-cover" />
+                      {isUploadingHero && (
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                          <Loader2 className="animate-spin text-white" size={32} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 space-y-4">
+                    <h4 className="text-lg font-black text-slate-800 tracking-tight">Customize Landing Page</h4>
+                    <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                      This image appears in the welcome section for all users. Upload a professional image (Recommended 800x800px or larger).
+                    </p>
+                    <div className="pt-2">
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        ref={heroFileInputRef} 
+                        onChange={handleHeroImageUpload} 
+                      />
+                      <button 
+                        onClick={() => heroFileInputRef.current?.click()}
+                        disabled={isUploadingHero}
+                        className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-indigo-600 transition-all shadow-xl disabled:opacity-50 flex items-center space-x-3"
+                      >
+                        <Camera size={18} />
+                        <span>{isUploadingHero ? 'Processing...' : 'Change Hero Image'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             
+            {/* Site Configuration (Features) */}
+            <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 mt-8 sm:mt-12 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+              <div className="relative z-10">
+                <div className="flex items-center space-x-4 mb-8">
+                  <div className="p-3 bg-blue-500 text-white rounded-2xl">
+                    <LayoutGrid size={24} />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Feature Management</h3>
+                </div>
+                
+                <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 sm:p-8">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-lg font-black text-slate-800 tracking-tight">Enable Feed Posts</h4>
+                      <p className="text-sm text-slate-500 font-medium leading-relaxed mt-1">
+                        Turn this off to completely hide both the post creation option and all older posts from the 'Home' tab. The 'Home' tab itself and other sections on it will remain visible.
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={async () => {
+                        const newState = !isFeedEnabled;
+                        setIsFeedEnabled(newState);
+                        
+                        const { error } = await supabase
+                          .from('site_config')
+                          .upsert({ key: 'is_feed_enabled', value: String(newState), updated_at: new Date().toISOString() });
+                          
+                        if (error) {
+                          console.error("Failed to update config", error);
+                          alert("Failed to update settings. Please try again.");
+                          setIsFeedEnabled(!newState); // revert
+                        }
+                      }}
+                      className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${isFeedEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                      role="switch"
+                      aria-checked={isFeedEnabled}
+                    >
+                      <span className="sr-only">Enable posting</span>
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isFeedEnabled ? 'translate-x-6' : 'translate-x-0'}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Admin User List */}
             <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
               <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
@@ -3367,7 +3719,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="flex flex-col">
                     <div className="-mt-24 sm:-mt-32 mb-6 relative inline-block">
                       {selectedProfile.avatar_url ? (
-                        <img src={selectedProfile.avatar_url} alt={selectedProfile.name} className="h-40 w-40 sm:h-48 sm:w-48 rounded-[3rem] border-[6px] border-white bg-white object-contain shadow-2xl" />
+                        <img src={selectedProfile.avatar_url} alt={selectedProfile.name} className="h-40 w-40 sm:h-48 sm:w-48 rounded-[3rem] border-[6px] border-white bg-white object-cover shadow-2xl" />
                       ) : (
                         <div className="h-40 w-40 sm:h-48 sm:w-48 rounded-[3rem] border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-6xl font-black shadow-2xl">
                           {selectedProfile.name?.charAt(0).toUpperCase()}
@@ -3577,7 +3929,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 {/* Watermark for download */}
                 <div className="download-watermark hidden absolute bottom-8 right-8 items-center space-x-3 opacity-20 pointer-events-none">
                   <Atom size={32} className="text-indigo-900" />
-                  <span className="font-black text-indigo-900 tracking-widest uppercase text-xl">Bondhon</span>
+                  <span className="font-black text-indigo-900 tracking-widest uppercase text-xl">ChemConnect</span>
                 </div>
               </div>
               </div>
@@ -3587,96 +3939,145 @@ create policy "Anyone can update their document." on storage.objects for update 
       </AnimatePresence>
 
       {/* DELETE USER CONFIRMATION MODAL */}
+
+      {/* CUSTOM RSVP FORM MODAL */}
       <AnimatePresence>
-        {userToDelete && (
+        {rsvpEvent && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6"
+            onClick={() => setRsvpEvent(null)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              initial={{ scale: 0.9, opacity: 0, y: 40 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="glass-card rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
+              exit={{ scale: 0.9, opacity: 0, y: 40 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-lg overflow-y-auto custom-scrollbar rounded-[2rem] shadow-2xl relative premium-shadow border border-slate-100 flex flex-col"
+              style={{ maxHeight: '90vh' }}
             >
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="relative z-10">
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete User</h3>
-                <p className="text-slate-600 mb-6">Are you sure you want to delete <strong>{userToDelete.name}</strong>? This action cannot be undone.</p>
-                <div className="flex justify-end space-x-3">
-                  <button onClick={() => setUserToDelete(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                  <button onClick={confirmDeleteUser} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Delete User</button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* DELETE POST CONFIRMATION MODAL */}
-        {postToDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="glass-card rounded-2xl p-4 sm:p-6 max-w-md w-full shadow-2xl relative overflow-hidden"
-            >
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="relative z-10">
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Delete Post</h3>
-                <p className="text-slate-600 mb-6">Are you sure you want to delete this post? This action cannot be undone.</p>
-                <div className="flex justify-end space-x-3">
-                  <button onClick={() => setPostToDelete(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                  <button onClick={confirmDeletePost} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Delete Post</button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* EDIT POST MODAL */}
-        {editingPost && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="glass-card rounded-2xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl relative overflow-hidden"
-            >
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="relative z-10">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-bold text-slate-900">Edit Post</h3>
-                  <button onClick={() => setEditingPost(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                    <X size={20} className="text-slate-500" />
+              <div className="p-6 sm:p-8 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 text-white relative overflow-hidden shrink-0">
+                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                <div className="flex justify-between items-start relative z-10">
+                  <div>
+                    <h3 className="text-2xl font-black tracking-tight leading-tight">{rsvpEvent.title}</h3>
+                    <p className="text-indigo-100 text-sm mt-1 font-medium">Please fill out this information to complete your registration.</p>
+                  </div>
+                  <button onClick={() => setRsvpEvent(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
+                    <X size={20} />
                   </button>
                 </div>
-                <form onSubmit={handleUpdatePost}>
-                  <textarea
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-slate-800 bg-white/50 backdrop-blur-sm"
-                    rows={6}
-                    value={editingPost.content}
-                    onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
-                    placeholder="What's on your mind?"
-                    required
-                  />
-                  <div className="flex justify-end space-x-3 mt-6">
-                    <button type="button" onClick={() => setEditingPost(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                    <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Save Changes</button>
+              </div>
+              <div className="p-6 sm:p-8 flex-1 overflow-y-auto">
+                <div className="space-y-6">
+                  {rsvpEvent.custom_fields?.map((question, idx) => (
+                    <div key={idx}>
+                      <label className="block text-xs font-bold text-slate-700 mb-2">{question} <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-sm"
+                        value={rsvpAnswers[question] || ''}
+                        onChange={(e) => setRsvpAnswers(prev => ({ ...prev, [question]: e.target.value }))}
+                        placeholder="Your answer..."
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-6 sm:p-8 border-t border-slate-100 bg-slate-50 shrink-0">
+                <button
+                  onClick={() => {
+                    const allAnswered = rsvpEvent.custom_fields?.every(q => rsvpAnswers[q]?.trim().length > 0);
+                    if (!allAnswered) {
+                      alert("Please fill out all the required fields.");
+                      return;
+                    }
+                    handleRSVP(rsvpEvent.id, 'Going', rsvpAnswers);
+                  }}
+                  disabled={isSubmittingRSVP}
+                  className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button"
+                >
+                  {isSubmittingRSVP ? 'Registering...' : 'Complete Registration'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* VIEW RESPONSES MODAL */}
+      <AnimatePresence>
+        {viewResponsesEvent && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6"
+            onClick={() => setViewResponsesEvent(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 40 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-[2rem] shadow-2xl relative premium-shadow border border-slate-100"
+            >
+              <div className="p-6 sm:p-8 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 text-white relative overflow-hidden shrink-0 rounded-t-[2rem]">
+                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                <div className="flex justify-between items-start relative z-10">
+                  <div>
+                    <h3 className="text-2xl font-black tracking-tight leading-tight">{viewResponsesEvent.title} - Registrations</h3>
+                    <p className="text-indigo-100 text-sm mt-1 font-medium">{eventResponses.length} members are going.</p>
                   </div>
-                </form>
+                  <button onClick={() => setViewResponsesEvent(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="p-6 sm:p-8 overflow-y-auto flex-1 custom-scrollbar">
+                {isLoadingResponses ? (
+                  <div className="flex justify-center py-12">
+                    <Loader2 size={32} className="animate-spin text-indigo-500" />
+                  </div>
+                ) : eventResponses.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                    <p className="text-slate-500 font-medium">No registrations yet.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {eventResponses.map((rsvp, idx) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 shadow-sm">
+                        <div className="flex items-center space-x-3 mb-4">
+                          {rsvp.profiles?.avatar_url ? (
+                            <img src={rsvp.profiles.avatar_url} className="w-10 h-10 rounded-xl object-cover" alt="" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-500 font-bold border border-slate-300">
+                              {rsvp.profiles?.name?.charAt(0)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-black text-slate-900 text-sm">{rsvp.profiles?.name}</div>
+                            <div className="text-xs text-slate-500 font-medium">{rsvp.profiles?.batch} Batch</div>
+                          </div>
+                        </div>
+                        {rsvp.answers && Object.keys(rsvp.answers).length > 0 && (
+                          <div className="space-y-2 mt-4 pt-4 border-t border-slate-200">
+                            {Object.entries(rsvp.answers).map(([key, value], i) => (
+                              <div key={i}>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{key}</div>
+                                <div className="text-sm font-medium text-slate-700">{value as React.ReactNode}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
