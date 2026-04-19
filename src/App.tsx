@@ -6,19 +6,22 @@ import {
   Target, X, Clock, Map, Bookmark, Calendar, CheckCircle, CalendarDays,
   BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown,
   ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash, Atom, Hexagon,
-  TestTube, TestTubes, Microscope, Dna, Pipette, Beaker
+  TestTube, TestTubes, Microscope, Dna, Pipette, Beaker, Activity, LayoutGrid, List, Cloud, CloudOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from './lib/supabase';
+import { supabase, withTimeout } from './lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toPng } from 'html-to-image';
+import { saveProfilesLocally, getLocalProfiles, saveOfflineMutation, getOfflineMutations, clearOfflineMutation } from './lib/db';
+import { Messages } from './components/Messages';
 
 type CurrentStatus = 'Student' | 'Govt Job' | 'Private Job' | 'Business' | 'Abroad' | '';
 type PostType = 'Job Update' | 'Advice' | 'Opportunity' | 'General';
 type EventType = 'Reunion' | 'Seminar' | 'Webinar' | 'Football Tournament' | 'Cricket Tournament' | 'Other';
 
-interface Profile {
+export interface Profile {
   id: string;
   name: string;
   avatar_url?: string;
@@ -32,6 +35,7 @@ interface Profile {
   institute_name?: string;
   location?: string;
   permanent_address?: string;
+  blood_group?: string;
   bio?: string;
   phone?: string;
   is_phone_private?: boolean;
@@ -82,6 +86,7 @@ const INITIAL_FORM_DATA: Partial<Profile> = {
   department: '',
   university: '',
   current_status: '',
+  blood_group: '',
   is_public: true,
   is_phone_private: false,
   social_links: {},
@@ -114,20 +119,20 @@ const MoleculeBackground = () => {
   const icons = [Atom, Hexagon, FlaskConical, TestTube, TestTubes, Microscope, Dna, Pipette, Beaker];
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-gradient-to-br from-indigo-50 via-cyan-50 to-emerald-50">
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-gradient-to-b from-[#1e3a8a] via-[#4f46e5] to-[#fcd34d]">
       {/* Dynamic Gradient Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-fuchsia-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '10s'}}></div>
-      <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-cyan-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '12s', animationDelay: '2s'}}></div>
-      <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full bg-emerald-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '14s', animationDelay: '4s'}}></div>
-      <div className="absolute top-[40%] left-[40%] w-[30vw] h-[30vw] rounded-full bg-amber-400/20 blur-[100px] mix-blend-multiply animate-pulse" style={{animationDuration: '11s', animationDelay: '1s'}}></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-500/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '10s'}}></div>
+      <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-indigo-300/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '12s', animationDelay: '2s'}}></div>
+      <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full bg-yellow-300/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '14s', animationDelay: '4s'}}></div>
+      <div className="absolute top-[40%] left-[40%] w-[30vw] h-[30vw] rounded-full bg-indigo-400/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '11s', animationDelay: '1s'}}></div>
       
       {/* Hexagon Pattern Watermark */}
-      <div className="absolute inset-0 opacity-[0.06] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+      <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
       
       {/* Floating Chemistry Elements */}
       {[...Array(elementCount)].map((_, i) => {
         const Icon = icons[i % icons.length];
-        const colors = ['text-cyan-500', 'text-fuchsia-500', 'text-emerald-500', 'text-amber-500', 'text-blue-500', 'text-indigo-500'];
+        const colors = ['text-white/20', 'text-indigo-100/20', 'text-yellow-100/20', 'text-blue-100/20'];
         const color = colors[i % colors.length];
         
         return (
@@ -149,7 +154,7 @@ const MoleculeBackground = () => {
               repeat: Infinity, 
               ease: "linear" 
             }}
-            className={`absolute opacity-[0.08] ${color}`}
+            className={`absolute ${color}`}
           >
             <Icon size={isMobile ? 40 : 80} />
           </motion.div>
@@ -201,7 +206,7 @@ const VerifiedBadge = ({ size = 16, animated = false }: { size?: number, animate
 };
 
 const UserBadges = ({ profile, size = 16 }: { profile: any, size?: number }) => {
-  const isAdmin = profile?.role === 'admin' || profile?.email === 'fllimonm1212@gmail.com';
+  const isAdmin = profile?.role === 'admin' || profile?.email === 'fllimonm1212@gmail.com' || profile?.email === 'chembondhon@gmail.com';
   const isVerified = profile?.verification_status === 'verified';
 
   if (!isAdmin && !isVerified) return null;
@@ -227,10 +232,13 @@ export default function App() {
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
 
-  const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'events' | 'saved' | 'admin'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'events' | 'saved' | 'admin' | 'messages'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterBatch, setFilterBatch] = useState<string>('All');
+  const [filterBloodGroup, setFilterBloodGroup] = useState<string>('All');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState<'batch_asc' | 'batch_desc' | 'name_asc' | 'name_desc'>('batch_asc');
   const [adminEmailToAdd, setAdminEmailToAdd] = useState('');
   const [isAddingAdmin, setIsAddingAdmin] = useState(false);
   const [exportBatch, setExportBatch] = useState<string>('');
@@ -240,7 +248,10 @@ export default function App() {
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const profileCardRef = useRef<HTMLDivElement>(null);
+  const [downloadingCardId, setDownloadingCardId] = useState<string | null>(null);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -269,6 +280,11 @@ export default function App() {
 
   // Profile Form State
   const [formData, setFormData] = useState<Partial<Profile>>(INITIAL_FORM_DATA);
+
+  // Offline & Sync State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncStatus, setSyncStatus] = useState<'online' | 'offline' | 'syncing'>('online');
+  const [pendingMutationsCount, setPendingMutationsCount] = useState(0);
 
   useEffect(() => {
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
@@ -324,6 +340,61 @@ export default function App() {
     };
   }, []);
 
+  const syncData = async () => {
+    if (!navigator.onLine) return;
+    setSyncStatus('syncing');
+    try {
+      const mutations = await getOfflineMutations();
+      for (const mutation of mutations) {
+        if (mutation.type === 'profile_update') {
+          const { error } = await supabase
+            .from('profiles')
+            .upsert(mutation.payload);
+          if (!error && mutation.id) {
+            await clearOfflineMutation(mutation.id);
+          }
+        }
+      }
+      await fetchProfiles();
+      const remaining = await getOfflineMutations();
+      setPendingMutationsCount(remaining.length);
+      setSyncStatus('online');
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncStatus('offline');
+    }
+  };
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setSyncStatus('online');
+      syncData();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncStatus('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial check
+    if (navigator.onLine) {
+      syncData();
+    } else {
+      setSyncStatus('offline');
+    }
+
+    // Load pending count
+    getOfflineMutations().then(m => setPendingMutationsCount(m.length));
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   useEffect(() => {
     if (currentUser) {
       fetchProfiles();
@@ -357,6 +428,7 @@ export default function App() {
           institute_name: data.institute_name,
           location: data.location,
           permanent_address: data.permanent_address,
+          blood_group: data.blood_group,
           bio: data.bio,
           phone: data.phone,
           is_phone_private: data.is_phone_private ?? false,
@@ -370,17 +442,22 @@ export default function App() {
       }
     }
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', currentUser.id)
-      .single();
+    if (!navigator.onLine) return;
 
-    if (data) {
-      localStorage.setItem(`chem_my_profile_${currentUser.id}`, JSON.stringify(data));
-      setFormData({
-        name: data.name,
-        avatar_url: data.avatar_url,
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single()) as any;
+
+      if (error) {
+        console.error('Error fetching my profile:', error);
+      } else if (data) {
+        localStorage.setItem(`chem_my_profile_${currentUser.id}`, JSON.stringify(data));
+        setFormData({
+          name: data.name,
+          avatar_url: data.avatar_url,
         batch: data.batch,
         chemistry_batch: data.chemistry_batch,
         student_id: data.student_id,
@@ -391,6 +468,7 @@ export default function App() {
         institute_name: data.institute_name,
         location: data.location,
         permanent_address: data.permanent_address,
+        blood_group: data.blood_group,
         bio: data.bio,
         phone: data.phone,
         is_phone_private: data.is_phone_private ?? false,
@@ -410,33 +488,49 @@ export default function App() {
       setActiveTab('profile');
       setIsEditingProfile(true);
     }
-  };
+  } catch (err) {
+    console.error('Network error fetching my profile:', err);
+  }
+};
 
   const fetchProfiles = async () => {
-    const cachedProfiles = localStorage.getItem('chem_profiles');
-    if (cachedProfiles) {
-      try {
-        setProfiles(JSON.parse(cachedProfiles));
-      } catch (e) {
-        console.error('Failed to parse cached profiles', e);
+    try {
+      const localProfiles = await getLocalProfiles();
+      if (localProfiles && localProfiles.length > 0) {
+        setProfiles(localProfiles);
       }
+    } catch (e) {
+      console.error('Failed to load local profiles', e);
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('is_public', true)
-      .order('created_at', { ascending: false });
+    if (!navigator.onLine) return;
 
-    if (error) {
-      console.error('Error fetching profiles:', error);
-      if (error.code === '42P01') {
-        setDbError('Database tables are missing. Please run the SQL setup script below in your Supabase SQL Editor.');
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_public', true)
+        .order('created_at', { ascending: false })) as any;
+
+      if (error) {
+        console.error('Error fetching profiles:', error);
+        if (error.code === '42P01') {
+          setDbError('Database tables are missing. Please run the SQL setup script below in your Supabase SQL Editor.');
+        } else {
+          setDbError('Failed to connect to database. Please check your connection.');
+        }
+      } else if (data) {
+        setDbError('');
+        setProfiles(data as Profile[]);
+        try {
+          await saveProfilesLocally(data as Profile[]);
+        } catch (e) {
+          console.error('Failed to save profiles locally', e);
+        }
       }
-    } else if (data) {
-      setDbError('');
-      setProfiles(data as Profile[]);
-      localStorage.setItem('chem_profiles', JSON.stringify(data));
+    } catch (err: any) {
+      console.error('Network error fetching profiles:', err);
+      setDbError(err.message || 'Failed to fetch profiles. Please check your internet connection.');
     }
   };
 
@@ -450,14 +544,20 @@ export default function App() {
       }
     }
 
-    const { data, error } = await supabase
-      .from('events')
-      .select('*, profiles(*), rsvps:event_rsvps(count), user_rsvp:event_rsvps(status)')
-      .order('event_date', { ascending: true });
+    if (!navigator.onLine) return;
 
-    if (!error && data) {
-      setEvents(data as AppEvent[]);
-      localStorage.setItem('chem_events', JSON.stringify(data));
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('events')
+        .select('*, profiles(*), rsvps:event_rsvps(count), user_rsvp:event_rsvps(status)')
+        .order('event_date', { ascending: true })) as any;
+
+      if (!error && data) {
+        setEvents(data as AppEvent[]);
+        localStorage.setItem('chem_events', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error('Error fetching events:', err);
     }
   };
 
@@ -473,15 +573,21 @@ export default function App() {
       }
     }
 
-    const { data, error } = await supabase
-      .from('bookmarks')
-      .select('profile_id')
-      .eq('user_id', currentUser.id);
+    if (!navigator.onLine) return;
 
-    if (!error && data) {
-      const bookmarkIds = data.map(b => b.profile_id);
-      setBookmarks(new Set(bookmarkIds));
-      localStorage.setItem(`chem_bookmarks_${currentUser.id}`, JSON.stringify(bookmarkIds));
+    try {
+      const { data, error } = await withTimeout(supabase
+        .from('bookmarks')
+        .select('profile_id')
+        .eq('user_id', currentUser.id)) as any;
+
+      if (!error && data) {
+        const bookmarkIds = data.map(b => b.profile_id);
+        setBookmarks(new Set(bookmarkIds));
+        localStorage.setItem(`chem_bookmarks_${currentUser.id}`, JSON.stringify(bookmarkIds));
+      }
+    } catch (err) {
+      console.error('Error fetching bookmarks:', err);
     }
   };
 
@@ -495,29 +601,37 @@ export default function App() {
       }
     }
 
-    // Lazy delete expired job posts
-    const now = new Date().toISOString();
-    await supabase
-      .from('posts')
-      .delete()
-      .eq('post_type', 'Job Update')
-      .not('job_deadline', 'is', null)
-      .lt('job_deadline', now);
+    if (!navigator.onLine) return;
 
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles(*)')
-      .order('created_at', { ascending: false });
+    try {
+      // Lazy delete expired job posts
+      const now = new Date().toISOString();
+      await withTimeout(supabase
+        .from('posts')
+        .delete()
+        .eq('post_type', 'Job Update')
+        .not('job_deadline', 'is', null)
+        .lt('job_deadline', now));
 
-    if (!error && data) {
-      setPosts(data as Post[]);
-      localStorage.setItem('chem_posts', JSON.stringify(data));
+      const { data, error } = await withTimeout(supabase
+        .from('posts')
+        .select('*, profiles(*)')
+        .order('created_at', { ascending: false })) as any;
+
+      if (!error && data) {
+        setPosts(data as Post[]);
+        localStorage.setItem('chem_posts', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error('Error fetching posts:', err);
     }
   };
 
   // Scroll to top when tab changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
   }, [activeTab]);
 
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -627,14 +741,21 @@ export default function App() {
       }
 
       const matchesBatch = filterBatch === 'All' || profile.chemistry_batch === filterBatch;
+      const matchesBloodGroup = filterBloodGroup === 'All' || profile.blood_group === filterBloodGroup;
 
-      return matchesSearch && matchesStatus && matchesBatch;
+      return matchesSearch && matchesStatus && matchesBatch && matchesBloodGroup;
     }).sort((a, b) => {
       const batchA = parseInt(a.chemistry_batch || '999');
       const batchB = parseInt(b.chemistry_batch || '999');
+      
+      if (sortBy === 'batch_asc') return batchA - batchB;
+      if (sortBy === 'batch_desc') return batchB - batchA;
+      if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'name_desc') return (b.name || '').localeCompare(a.name || '');
+      
       return batchA - batchB;
     });
-  }, [profiles, searchQuery, filterStatus, filterBatch, formData.chemistry_batch, currentUser?.id]);
+  }, [profiles, searchQuery, filterStatus, filterBatch, filterBloodGroup, sortBy, formData.chemistry_batch, currentUser?.id]);
 
   const groupedProfiles = useMemo(() => {
     const groups: { [key: string]: Profile[] } = {};
@@ -644,6 +765,20 @@ export default function App() {
       groups[batch].push(profile);
     });
     
+    // Sort profiles within each group
+    Object.keys(groups).forEach(batch => {
+      groups[batch].sort((a, b) => {
+        // First sort by student ID if available
+        if (a.student_id && b.student_id) {
+          return a.student_id.localeCompare(b.student_id);
+        }
+        if (a.student_id) return -1;
+        if (b.student_id) return 1;
+        // Fallback to name
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    });
+
     return Object.entries(groups).sort((a, b) => {
       if (a[0] === 'N/A') return 1;
       if (b[0] === 'N/A') return -1;
@@ -654,6 +789,37 @@ export default function App() {
       return batchA - batchB;
     });
   }, [filteredProfiles]);
+
+  const downloadSpecificCard = async (elementId: string, profileName: string) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    try {
+      setDownloadingCardId(elementId);
+      const dataUrl = await toPng(element, {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        onclone: (clonedNode: any) => {
+          const watermarks = clonedNode.querySelectorAll('.download-watermark');
+          watermarks.forEach((w: any) => {
+            w.classList.remove('hidden');
+            w.classList.add('flex');
+          });
+        }
+      } as any);
+      
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${profileName.replace(/\s+/g, '_')}_Profile_Card.png`;
+      link.click();
+    } catch (error) {
+      console.error('Error generating card image:', error);
+      alert('Failed to download the profile card. Please try again.');
+    } finally {
+      setDownloadingCardId(null);
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -696,6 +862,7 @@ export default function App() {
       institute_name: formData.institute_name,
       location: formData.location,
       permanent_address: formData.permanent_address,
+      blood_group: formData.blood_group,
       bio: formData.bio,
       phone: formData.phone,
       is_phone_private: formData.is_phone_private ?? false,
@@ -703,6 +870,27 @@ export default function App() {
       social_links: formData.social_links || {},
       is_public: formData.is_public ?? true
     };
+
+    if (!navigator.onLine) {
+      await saveOfflineMutation('profile_update', profileData);
+      const remaining = await getOfflineMutations();
+      setPendingMutationsCount(remaining.length);
+      
+      // Update local profiles cache
+      const localProfiles = await getLocalProfiles();
+      const existingIndex = localProfiles.findIndex(p => p.id === currentUser.id);
+      if (existingIndex >= 0) {
+        localProfiles[existingIndex] = { ...localProfiles[existingIndex], ...profileData } as Profile;
+      } else {
+        localProfiles.push(profileData as Profile);
+      }
+      await saveProfilesLocally(localProfiles);
+      setProfiles(localProfiles);
+      
+      setIsEditingProfile(false);
+      setActiveTab('directory');
+      return;
+    }
 
     const { error } = await supabase
       .from('profiles')
@@ -999,6 +1187,7 @@ export default function App() {
 
   const uniqueBatches = Array.from(new Set(profiles.map(p => p.batch).filter(Boolean))).sort();
   const uniqueChemistryBatches = Array.from(new Set(profiles.map(p => p.chemistry_batch).filter(Boolean))).sort();
+  const uniqueBloodGroups = Array.from(new Set(profiles.map(p => p.blood_group).filter(Boolean))).sort();
 
   const getPostTypeIcon = (type: PostType) => {
     switch (type) {
@@ -1009,12 +1198,12 @@ export default function App() {
     }
   };
 
-  const isAdmin = currentUser?.email === 'fllimonm1212@gmail.com' || profiles.find(p => p.id === currentUser?.id)?.role === 'admin';
+  const isAdmin = currentUser?.email === 'fllimonm1212@gmail.com' || currentUser?.email === 'chembondhon@gmail.com' || profiles.find(p => p.id === currentUser?.id)?.role === 'admin';
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-700"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-700"></div>
       </div>
     );
   }
@@ -1029,10 +1218,10 @@ export default function App() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="flex justify-center text-teal-700"
+            className="flex justify-center text-indigo-700"
           >
-            <div className="bg-white p-5 rounded-3xl shadow-2xl shadow-teal-100/50 border border-teal-50/50">
-               <FlaskConical size={56} className="text-teal-600" />
+            <div className="bg-white p-5 rounded-3xl shadow-2xl shadow-indigo-100/50 border border-indigo-50/50">
+               <FlaskConical size={56} className="text-indigo-600" />
             </div>
           </motion.div>
           <motion.h2 
@@ -1084,7 +1273,7 @@ export default function App() {
                   <input
                     required
                     type="text"
-                    className="appearance-none block w-full px-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900"
+                    className="appearance-none block w-full px-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-slate-900"
                     value={authForm.name}
                     onChange={e => setAuthForm({...authForm, name: e.target.value})}
                     placeholder="Rahim Uddin"
@@ -1096,7 +1285,7 @@ export default function App() {
                 <input
                   required
                   type="email"
-                  className="appearance-none block w-full px-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900"
+                  className="appearance-none block w-full px-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-slate-900"
                   value={authForm.email}
                   onChange={e => setAuthForm({...authForm, email: e.target.value})}
                   placeholder="email@example.com"
@@ -1107,7 +1296,7 @@ export default function App() {
                 <input
                   required
                   type="password"
-                  className="appearance-none block w-full px-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all outline-none text-slate-900"
+                  className="appearance-none block w-full px-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-slate-900"
                   value={authForm.password}
                   onChange={e => setAuthForm({...authForm, password: e.target.value})}
                   placeholder="••••••••"
@@ -1116,7 +1305,7 @@ export default function App() {
               <div className="pt-4">
                 <button
                   type="submit"
-                  className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-xl shadow-teal-200/50 text-base font-bold text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 premium-button"
+                  className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-xl shadow-indigo-200/50 text-base font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 premium-button"
                 >
                   {authMode === 'login' ? 'Sign In' : 'Create Account'}
                 </button>
@@ -1129,12 +1318,12 @@ export default function App() {
                   setAuthMode(authMode === 'login' ? 'register' : 'login');
                   setAuthError('');
                 }}
-                className="text-slate-500 hover:text-teal-600 font-bold text-sm transition-colors"
+                className="text-slate-500 hover:text-indigo-600 font-bold text-sm transition-colors"
               >
                 {authMode === 'login' ? (
-                  <>Don't have an account? <span className="text-teal-600 underline underline-offset-4">Register here</span></>
+                  <>Don't have an account? <span className="text-indigo-600 underline underline-offset-4">Register here</span></>
                 ) : (
-                  <>Already have an account? <span className="text-teal-600 underline underline-offset-4">Sign in here</span></>
+                  <>Already have an account? <span className="text-indigo-600 underline underline-offset-4">Sign in here</span></>
                 )}
               </button>
             </div>
@@ -1149,7 +1338,7 @@ export default function App() {
     <div className="min-h-screen bg-transparent font-sans pb-20 sm:pb-8 pt-20 relative">
       <MoleculeBackground />
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-2xl border-b border-white/50 shadow-sm fixed top-0 left-0 right-0 z-50">
+      <header className="bg-[#1e3a8a]/90 backdrop-blur-2xl border-b border-white/10 shadow-sm fixed top-0 left-0 right-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -1163,9 +1352,9 @@ export default function App() {
                   repeat: Infinity, 
                   ease: "easeInOut" 
                 }}
-                className="bg-gradient-to-br from-teal-600 to-emerald-600 p-2.5 rounded-2xl text-white shadow-lg shadow-teal-200/50 relative overflow-hidden"
+                className="bg-gradient-to-br from-white/20 to-white/5 p-2.5 rounded-2xl text-white shadow-lg shadow-black/10 border border-white/20 relative overflow-hidden"
               >
-                <FlaskConical size={28} className="relative z-10" />
+                <Atom size={28} className="relative z-10" />
                 <motion.div 
                   animate={{ y: [20, -20] }}
                   transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
@@ -1173,15 +1362,15 @@ export default function App() {
                 />
               </motion.div>
               <div>
-                <h1 className="text-2xl font-extrabold tracking-tight font-display bg-clip-text text-transparent bg-gradient-to-r from-teal-700 to-emerald-700">Bondhon</h1>
-                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] hidden sm:block">Chemistry Dept • RU</p>
+                <h1 className="text-2xl font-extrabold tracking-tight font-display text-white">Department of<br/><span className="text-3xl">Chemistry</span></h1>
               </div>
             </div>
             
-            <div className="hidden md:flex items-center space-x-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50 relative">
+            <div className="hidden md:flex items-center space-x-1 bg-white/10 p-1.5 rounded-2xl border border-white/10 relative">
               {[
                 { id: 'feed', icon: Home, label: 'Home' },
                 { id: 'directory', icon: Users, label: 'Directory' },
+                { id: 'messages', icon: MessageSquare, label: 'Messages' },
                 { id: 'events', icon: Calendar, label: 'Events' },
                 { id: 'saved', icon: Bookmark, label: 'Saved' },
                 { id: 'profile', icon: UserIcon, label: 'Profile' },
@@ -1192,11 +1381,12 @@ export default function App() {
                   onClick={() => {
                     setActiveTab(tab.id as any);
                     if (tab.id === 'profile') setIsEditingProfile(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center space-x-2 relative z-10 ${
                     activeTab === tab.id 
                       ? 'text-white' 
-                      : 'text-slate-500 hover:text-slate-900'
+                      : 'text-white/70 hover:text-white'
                   }`}
                 >
                   <tab.icon size={18} className={`transition-colors duration-300 ${activeTab === tab.id ? 'text-white' : ''}`} />
@@ -1204,7 +1394,7 @@ export default function App() {
                   {activeTab === tab.id && (
                     <motion.div 
                       layoutId="desktop-nav-active"
-                      className="absolute inset-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl shadow-lg shadow-teal-200/50 border border-teal-400/50 -z-10"
+                      className="absolute inset-0 bg-white/20 rounded-xl shadow-lg -z-10"
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}
@@ -1213,13 +1403,38 @@ export default function App() {
             </div>
 
             <div className="flex items-center space-x-4">
+              <div className="hidden sm:flex items-center space-x-2 mr-4">
+                {syncStatus === 'syncing' ? (
+                  <span className="flex items-center text-xs font-bold text-amber-300 bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/30">
+                    <Loader2 size={14} className="animate-spin mr-1.5" /> Syncing...
+                  </span>
+                ) : !isOnline ? (
+                  <span className="flex items-center text-xs font-bold text-rose-300 bg-rose-500/20 px-3 py-1.5 rounded-full border border-rose-500/30">
+                    <CloudOff size={14} className="mr-1.5" /> Offline ({pendingMutationsCount} pending)
+                  </span>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <span className="flex items-center text-xs font-bold text-blue-300 bg-blue-500/20 px-3 py-1.5 rounded-full border border-blue-500/30">
+                      <Cloud size={14} className="mr-1.5" /> Online
+                    </span>
+                    {pendingMutationsCount > 0 && (
+                      <button 
+                        onClick={syncData}
+                        className="flex items-center text-xs font-bold text-white bg-indigo-500 hover:bg-indigo-600 px-3 py-1.5 rounded-full transition-colors"
+                      >
+                        Sync Now ({pendingMutationsCount})
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="hidden sm:flex flex-col items-end">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Logged in as</span>
-                <span className="text-sm font-bold text-slate-900">{currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0]}</span>
+                <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Logged in as</span>
+                <span className="text-sm font-bold text-white">{currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0]}</span>
               </div>
               <button 
                 onClick={handleLogout}
-                className="p-3 rounded-2xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all duration-300 border border-slate-200/50"
+                className="p-3 rounded-2xl bg-white/10 text-white/70 hover:bg-red-500/20 hover:text-red-300 transition-all duration-300 border border-white/10"
                 title="Logout"
               >
                 <LogOut size={20} />
@@ -1253,6 +1468,7 @@ create table if not exists profiles (
   institute_name text,
   location text,
   permanent_address text,
+  blood_group text,
   bio text,
   phone text,
   is_phone_private boolean default false,
@@ -1303,38 +1519,42 @@ create policy "Anyone can update their document." on storage.objects for update 
       )}
 
       {/* Mobile Navigation */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 flex z-40 pb-safe px-2 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.05)]">
-        {[
-          { id: 'feed', icon: Home, label: 'Feed' },
-          { id: 'directory', icon: Users, label: 'Directory' },
-          { id: 'events', icon: Calendar, label: 'Events' },
-          { id: 'saved', icon: Bookmark, label: 'Saved' },
-          { id: 'profile', icon: UserIcon, label: 'Profile' },
-          ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Admin' }] : [])
-        ].map((item) => (
-          <button
-            key={item.id}
-            onClick={() => {
-              setActiveTab(item.id as any);
-              if (item.id === 'profile') setIsEditingProfile(false);
-            }}
-            className="flex-1 py-4 flex flex-col items-center justify-center relative group"
-          >
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 z-40 pb-safe shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.05)]">
+        <div className="flex overflow-x-auto hide-scrollbar px-2">
+          {[
+            { id: 'feed', icon: Home, label: 'Feed' },
+            { id: 'directory', icon: Users, label: 'Directory' },
+            { id: 'messages', icon: MessageSquare, label: 'Messages' },
+            { id: 'events', icon: Calendar, label: 'Events' },
+            { id: 'saved', icon: Bookmark, label: 'Saved' },
+            { id: 'profile', icon: UserIcon, label: 'Profile' },
+            ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Admin' }] : [])
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveTab(item.id as any);
+                if (item.id === 'profile') setIsEditingProfile(false);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex-none w-[72px] py-4 flex flex-col items-center justify-center relative group"
+            >
             <div className={`relative z-10 transition-all duration-300 ${activeTab === item.id ? 'text-white -translate-y-1' : 'text-slate-400'}`}>
               <item.icon size={22} className={activeTab === item.id ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''} />
             </div>
-            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${activeTab === item.id ? 'text-teal-800 opacity-100 scale-100' : 'text-slate-400 opacity-60 scale-90'}`}>
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${activeTab === item.id ? 'text-indigo-800 opacity-100 scale-100' : 'text-slate-400 opacity-60 scale-90'}`}>
               {item.label}
             </span>
             {activeTab === item.id && (
               <motion.div 
                 layoutId="mobile-nav-active"
-                className="absolute inset-x-2 inset-y-2 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-2xl -z-0 border border-teal-400/50 shadow-lg shadow-teal-200/50"
+                className="absolute inset-x-2 inset-y-2 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl -z-0 border border-indigo-400/50 shadow-lg shadow-indigo-200/50"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
               />
             )}
           </button>
         ))}
+        </div>
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
@@ -1347,15 +1567,99 @@ create policy "Anyone can update their document." on storage.objects for update 
               animate={{ opacity: 1, x: 0 }} 
               exit={{ opacity: 0, x: 20 }} 
               transition={{ duration: 0.3 }}
-              className="max-w-3xl mx-auto space-y-6"
+              className="max-w-5xl mx-auto space-y-6"
             >
             
+            {/* Hero Section */}
+            <div className="mb-12 text-center relative z-10 pt-4">
+              <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-display mb-4 drop-shadow-md">
+                Connect, Network & Grow with Our<br/>
+                <span className="text-yellow-300">Chemistry Family</span>
+              </h2>
+              
+              {/* Search Bar */}
+              <div className="max-w-3xl mx-auto mt-8 bg-white/10 backdrop-blur-md p-2 rounded-2xl sm:rounded-full flex flex-col sm:flex-row items-center gap-2 border border-white/20 shadow-xl">
+                <div className="relative flex-1 w-full">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-white/70" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by name, batch, location, company..."
+                    className="block w-full pl-12 pr-4 py-3 bg-white/10 border-none rounded-xl sm:rounded-full text-white placeholder-white/70 focus:ring-2 focus:ring-white/50 outline-none transition-all text-sm font-medium"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setActiveTab('directory');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                  />
+                </div>
+                <button 
+                  onClick={() => {
+                    setActiveTab('directory');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full sm:w-auto bg-[#1e3a8a] text-white px-8 py-3 rounded-xl sm:rounded-full font-bold text-sm hover:bg-blue-800 transition-all shadow-lg"
+                >
+                  Search
+                </button>
+              </div>
+
+              {/* Quick Links */}
+              <div className="flex flex-wrap justify-center gap-3 mt-6">
+                <button onClick={() => { setActiveTab('directory'); setFilterStatus('Student'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
+                  <Users size={14} className="mr-2 text-blue-600" /> Find Students
+                </button>
+                <button onClick={() => { setActiveTab('directory'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
+                  <Lightbulb size={14} className="mr-2 text-blue-600" /> Skills
+                </button>
+                <button onClick={() => { setActiveTab('directory'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="bg-white/90 text-slate-800 px-6 py-2 rounded-full text-xs font-bold shadow-md hover:bg-white transition-all flex items-center">
+                  <FlaskConical size={14} className="mr-2 text-orange-600" /> Research Groups
+                </button>
+              </div>
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 max-w-4xl mx-auto">
+                <div className="bg-indigo-600/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/20 transition-all duration-300 cursor-default">
+                  <div className="bg-white/20 p-3 rounded-xl mr-4">
+                    <Users className="text-white" size={24} />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Total Students</div>
+                    <div className="text-white text-2xl font-black">{profiles.length}+</div>
+                  </div>
+                </div>
+                <div className="bg-blue-500/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/20 transition-all duration-300 cursor-default">
+                  <div className="bg-white/20 p-3 rounded-xl mr-4">
+                    <Lightbulb className="text-white" size={24} />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Specialized Skills</div>
+                    <div className="text-white text-2xl font-black">28</div>
+                  </div>
+                </div>
+                <div className="bg-orange-500/90 backdrop-blur-md rounded-2xl p-4 flex items-center shadow-lg border border-white/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/20 transition-all duration-300 cursor-default">
+                  <div className="bg-white/20 p-3 rounded-xl mr-4">
+                    <FlaskConical className="text-white" size={24} />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-white/80 text-xs font-bold uppercase tracking-wider">Research Group</div>
+                    <div className="text-white text-2xl font-black">08</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="max-w-3xl mx-auto space-y-6">
             {/* Create Post Box */}
             <div className="glass-card rounded-2xl sm:rounded-3xl p-4 sm:p-6 premium-shadow relative overflow-hidden">
               <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
               <form onSubmit={handleCreatePost} className="relative z-10">
                 <div className="flex items-start space-x-4">
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-white shadow-lg shadow-teal-100 shrink-0">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white shadow-lg shadow-indigo-100 shrink-0">
                     {formData.avatar_url ? (
                       <img src={formData.avatar_url} alt="" className="h-full w-full rounded-2xl object-cover" />
                     ) : (
@@ -1383,7 +1687,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">Application Link</label>
                         <input
                           type="url"
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                           placeholder="https://..."
                           value={jobLink}
                           onChange={(e) => setJobLink(e.target.value)}
@@ -1393,7 +1697,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">Deadline</label>
                         <input
                           type="date"
-                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                           value={jobDeadline}
                           onChange={(e) => setJobDeadline(e.target.value)}
                         />
@@ -1402,30 +1706,11 @@ create policy "Anyone can update their document." on storage.objects for update 
                   </motion.div>
                 )}
 
-                <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Post as</span>
-                    <div className="flex p-1 bg-slate-100/50 rounded-xl border border-slate-200/50">
-                      {POST_TYPES.map(type => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setPostType(type)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            postType === type 
-                              ? 'bg-white text-teal-700 shadow-sm border border-slate-100' 
-                              : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                <div className="mt-6 pt-6 border-t border-slate-100 flex justify-end">
                   <button
                     type="submit"
                     disabled={!postContent.trim() || isPosting}
-                    className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-teal-100 premium-button"
+                    className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-indigo-100 premium-button"
                   >
                     {isPosting ? 'Publishing...' : 'Publish Post'}
                   </button>
@@ -1439,7 +1724,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 onClick={() => setPostFilter('All')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
                   postFilter === 'All' 
-                    ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' 
                     : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                 }`}
               >
@@ -1451,7 +1736,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   onClick={() => setPostFilter(type)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
                     postFilter === type 
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' 
                       : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                   }`}
                 >
@@ -1465,7 +1750,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               {posts.filter(post => postFilter === 'All' || post.post_type === postFilter).map(post => {
                 const author = post.profiles || profiles.find(p => p.id === post.author_id);
                 return (
-                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 relative">
+                  <div key={post.id} className="glass-card rounded-2xl sm:rounded-3xl premium-shadow premium-hover overflow-hidden group hover:border-indigo-400/50 hover:shadow-indigo-900/5 transition-all duration-500 relative">
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                     <div className="p-4 sm:p-6 relative z-10">
                       <div className="flex items-start justify-between mb-6">
@@ -1483,7 +1768,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                             </div>
                           )}
                           <div>
-                            <h4 className="font-bold text-slate-900 hover:text-teal-700 transition-colors flex items-center text-base">
+                            <h4 className="font-bold text-slate-900 hover:text-indigo-700 transition-colors flex items-center text-base">
                               {author?.name || 'Unknown User'}
                               <UserBadges profile={author} size={18} />
                             </h4>
@@ -1507,7 +1792,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                               {currentUser?.id === post.author_id && (
                                 <button 
                                   onClick={() => setEditingPost(post)}
-                                  className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-xl transition-all"
+                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                                   title="Edit Post"
                                 >
                                   <Edit size={16} />
@@ -1533,7 +1818,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           <h5 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Opportunity Details</h5>
                           <div className="flex flex-wrap gap-3">
                             {post.job_link && (
-                              <a href={post.job_link} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-white font-bold bg-teal-600 hover:bg-teal-700 px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-teal-100 premium-button">
+                              <a href={post.job_link} target="_blank" rel="noopener noreferrer" className="flex items-center text-sm text-white font-bold bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-indigo-100 premium-button">
                                 <ExternalLink size={16} className="mr-2" />
                                 Apply Now
                               </a>
@@ -1564,6 +1849,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 </div>
               )}
             </div>
+            </div>
           </motion.div>
         )}
 
@@ -1585,7 +1871,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <input
                     type="text"
                     placeholder="Search by name, batch, location, company..."
-                    className="block w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                    className="block w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all text-sm font-medium"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -1597,7 +1883,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       onClick={() => setFilterStatus(status as any)}
                       className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap transition-all border ${
                         filterStatus === status 
-                          ? 'bg-teal-600 text-white border-teal-600 shadow-lg shadow-teal-100' 
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100' 
                           : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                       }`}
                     >
@@ -1613,7 +1899,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <select
                     value={filterBatch}
                     onChange={(e) => setFilterBatch(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all text-slate-700 font-medium"
+                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium"
                   >
                     <option value="All">All Batches</option>
                     {uniqueChemistryBatches.map(batch => (
@@ -1621,134 +1907,281 @@ create policy "Anyone can update their document." on storage.objects for update 
                     ))}
                   </select>
                 </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Blood Group</label>
+                  <select
+                    value={filterBloodGroup}
+                    onChange={(e) => setFilterBloodGroup(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium"
+                  >
+                    <option value="All">All Blood Groups</option>
+                    {uniqueBloodGroups.map(bg => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Sort By</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="w-full px-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-slate-700 font-medium"
+                  >
+                    <option value="batch_asc">Batch (Oldest First)</option>
+                    <option value="batch_desc">Batch (Newest First)</option>
+                    <option value="name_asc">Name (A-Z)</option>
+                    <option value="name_desc">Name (Z-A)</option>
+                  </select>
+                </div>
+                <div className="flex items-end pb-1">
+                  <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button
+                      onClick={() => setViewMode('grid')}
+                      className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      title="Grid View"
+                    >
+                      <LayoutGrid size={18} />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      title="List View"
+                    >
+                      <List size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                Showing {filteredProfiles.length} Members
               </div>
             </div>
 
             <div className="space-y-16">
-              {groupedProfiles.map(([batch, profilesInBatch]) => (
-                <div key={batch} className="space-y-8">
-                  <div className="flex items-center space-x-6">
-                    <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">
-                      {batch === 'N/A' ? 'Batch Not Specified' : `Chemistry Batch ${batch}`}
-                    </h2>
-                    <div className="h-px flex-1 bg-gradient-to-r from-slate-200 to-transparent"></div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                    <AnimatePresence>
-                      {profilesInBatch.map((profile, idx) => (
-                        <motion.div
-                          layout
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          transition={{ duration: 0.4, delay: idx * 0.05 }}
-                          key={profile.id}
-                          className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden group hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 flex flex-col cursor-pointer relative"
-                          onClick={() => setSelectedProfile(profile)}
-                        >
-                          <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
-                          <div className="h-32 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden z-10">
-                            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-                            <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12 group-hover:rotate-45 transition-transform duration-700" />
-                            <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-teal-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
-                              className="absolute top-4 right-4 z-10 bg-white/10 backdrop-blur-md p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all border border-white/10"
-                            >
-                              <Bookmark size={18} className={bookmarks.has(profile.id) ? "fill-current text-yellow-400" : ""} />
-                            </button>
-                          </div>
-                          <div className="px-6 pb-6 flex-1 flex flex-col relative z-10">
-                            <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
-                            <div className="-mt-16 mb-4 relative">
-                              {profile.avatar_url ? (
-                                <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
-                              ) : (
-                                <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
-                                  {profile.name?.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <div className="absolute bottom-2 left-20">
-                                <div className="w-5 h-5 rounded-full bg-emerald-500 border-4 border-white shadow-sm"></div>
+              {viewMode === 'grid' ? (
+                groupedProfiles.map(([batch, profilesInBatch]) => (
+                  <div key={batch} className="space-y-8 relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent -mx-4 sm:-mx-8 px-4 sm:px-8 pt-12 -mt-12 rounded-[3rem] -z-10 border-t border-indigo-100/50"></div>
+                    <div className="flex items-center space-x-4">
+                      <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-6 py-2.5 rounded-2xl font-black text-lg shadow-lg shadow-indigo-200/50 flex items-center border border-indigo-400/30">
+                        <FlaskConical size={20} className="mr-2 opacity-80" />
+                        {batch === 'N/A' ? 'Batch Not Specified' : `Chemistry Batch ${batch}`}
+                      </div>
+                      <div className="h-px flex-1 bg-gradient-to-r from-indigo-600/50 to-transparent"></div>
+                    </div>
+                    
+                    <div className="flex overflow-x-auto gap-8 pb-8 snap-x snap-mandatory hide-scrollbar -mx-4 px-4 sm:-mx-8 sm:px-8">
+                      <AnimatePresence>
+                        {profilesInBatch.map((profile, idx) => (
+                          <motion.div
+                            layout
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.4, delay: idx * 0.05 }}
+                            key={profile.id}
+                            id={`profile-card-${profile.id}`}
+                            className="glass-card min-w-[320px] max-w-[350px] sm:min-w-[350px] snap-center shrink-0 rounded-2xl sm:rounded-[2rem] premium-shadow premium-hover overflow-hidden group flex flex-col cursor-pointer relative bg-white"
+                            onClick={() => setSelectedProfile(profile)}
+                          >
+                            <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
+                            <div className="h-32 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 relative overflow-hidden z-10">
+                              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                              <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12 group-hover:rotate-45 transition-transform duration-700" />
+                              <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-indigo-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
+                              <div className="absolute top-4 right-4 z-10 flex items-center space-x-2">
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); downloadSpecificCard(`profile-card-${profile.id}`, profile.name); }}
+                                  disabled={downloadingCardId === `profile-card-${profile.id}`}
+                                  className="bg-white/10 backdrop-blur-md p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all border border-white/10 disabled:opacity-50"
+                                  title="Download Card"
+                                >
+                                  {downloadingCardId === `profile-card-${profile.id}` ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
+                                  className="bg-white/10 backdrop-blur-md p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all border border-white/10"
+                                  title={bookmarks.has(profile.id) ? "Remove Bookmark" : "Add Bookmark"}
+                                >
+                                  <Bookmark size={18} className={bookmarks.has(profile.id) ? "fill-current text-yellow-400" : ""} />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex-1">
-                              <h3 className="text-xl font-black text-slate-900 leading-tight flex items-center group-hover:text-teal-700 transition-colors tracking-tight">
-                                {profile.name}
-                                <UserBadges profile={profile} size={20} />
-                              </h3>
-                              <div className="mt-1.5 text-sm text-teal-700 font-bold line-clamp-2 min-h-[2.5rem] bg-teal-50/50 inline-block px-3 py-1 rounded-lg border border-teal-100/50">
-                                {profile.job_title || profile.current_status} {profile.job_title && profile.institute_name && ' at '} {profile.institute_name}
-                              </div>
-                              
-                              <div className="mt-5 space-y-3">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {profile.location && (
-                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                                      <MapPin size={12} className="mr-1.5 text-teal-600"/> {profile.location}
-                                    </span>
-                                  )}
-                                  <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                                    <FlaskConical size={12} className="mr-1.5 text-teal-600"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
-                                  </span>
-                                  {profile.student_id && (
-                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                                      <Hash size={12} className="mr-1.5 text-teal-600"/> ID: {profile.student_id}
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                <div className="text-xs text-slate-500 space-y-2 mt-4 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                                  {profile.department && profile.university && (
-                                    <div className="flex items-start gap-2.5">
-                                      <Atom size={14} className="text-teal-500 shrink-0 mt-0.5" />
-                                      <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
-                                    </div>
-                                  )}
-                                  {profile.email && (
-                                    <div className="flex items-center gap-2.5">
-                                      <Mail size={14} className="text-slate-400 shrink-0" />
-                                      <span className="truncate font-medium">{profile.email}</span>
-                                    </div>
-                                  )}
-                                  {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
-                                    <div className="flex items-center gap-2.5">
-                                      <Phone size={14} className="text-slate-400 shrink-0" />
-                                      <span className="font-medium">{profile.phone}</span>
-                                    </div>
-                                  )}
-                                  {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
-                                    <div className="flex items-center gap-2.5">
-                                      <Phone size={14} className="text-slate-400 shrink-0" />
-                                      <span className="italic text-slate-400 font-medium">Private</span>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {profile.bio && (
-                                  <div className="mt-3 text-xs text-slate-600 italic line-clamp-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative">
-                                    <div className="absolute top-2 left-2 text-slate-200">"</div>
-                                    <span className="relative z-10 pl-3">{profile.bio}</span>
+                            <div className="px-6 pb-6 flex-1 flex flex-col relative z-10">
+                              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
+                              <div className="-mt-16 mb-4 relative">
+                                {profile.avatar_url ? (
+                                  <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-contain shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                                ) : (
+                                  <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
+                                    {profile.name?.charAt(0).toUpperCase()}
                                   </div>
                                 )}
+                                <div className="absolute bottom-2 left-20">
+                                  <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-white shadow-sm"></div>
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <h3 className="text-xl font-black text-slate-900 leading-tight flex items-center group-hover:text-indigo-700 transition-colors tracking-tight">
+                                  {profile.name}
+                                  <UserBadges profile={profile} size={20} />
+                                </h3>
+                                <div className="mt-1.5 text-sm text-indigo-700 font-bold line-clamp-2 min-h-[2.5rem] bg-indigo-50/50 inline-block px-3 py-1 rounded-lg border border-indigo-100/50">
+                                  {profile.job_title || profile.current_status} {profile.job_title && profile.institute_name && ' at '} {profile.institute_name}
+                                </div>
+                                
+                                <div className="mt-5 space-y-3">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {profile.location && (
+                                      <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                        <MapPin size={12} className="mr-1.5 text-indigo-600"/> {profile.location}
+                                      </span>
+                                    )}
+                                    <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                      <FlaskConical size={12} className="mr-1.5 text-indigo-600"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
+                                    </span>
+                                    {profile.student_id && (
+                                      <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200">
+                                        <Hash size={12} className="mr-1.5 text-indigo-600"/> ID: {profile.student_id}
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="text-xs text-slate-500 space-y-2 mt-4 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                                    {profile.department && profile.university && (
+                                      <div className="flex items-start gap-2.5">
+                                        <Atom size={14} className="text-indigo-500 shrink-0 mt-0.5" />
+                                        <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
+                                      </div>
+                                    )}
+                                    {profile.email && (
+                                      <div className="flex items-center gap-2.5">
+                                        <Mail size={14} className="text-slate-400 shrink-0" />
+                                        <span className="truncate font-medium">{profile.email}</span>
+                                      </div>
+                                    )}
+                                    {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                                      <div className="flex items-center gap-2.5">
+                                        <Phone size={14} className="text-slate-400 shrink-0" />
+                                        <span className="font-medium">{profile.phone}</span>
+                                      </div>
+                                    )}
+                                    {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
+                                      <div className="flex items-center gap-2.5">
+                                        <Phone size={14} className="text-slate-400 shrink-0" />
+                                        <span className="italic text-slate-400 font-medium">Private</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {profile.bio && (
+                                    <div className="mt-3 text-xs text-slate-600 italic line-clamp-3 bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative">
+                                      <div className="absolute top-2 left-2 text-slate-200">"</div>
+                                      <span className="relative z-10 pl-3">{profile.bio}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between">
+                                <span className="text-indigo-600 font-black text-xs uppercase tracking-widest group-hover:translate-x-1 transition-transform flex items-center">
+                                  View Full Profile <ArrowRight size={14} className="ml-1" />
+                                </span>
+                                <div className="h-8 w-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                  <ArrowRight size={16} />
+                                </div>
+                              </div>
+                              {/* Watermark for download */}
+                              <div className="download-watermark hidden absolute bottom-4 right-4 items-center space-x-2 opacity-20 pointer-events-none">
+                                <Atom size={24} className="text-indigo-900" />
+                                <span className="font-black text-indigo-900 tracking-widest uppercase text-sm">Bondhon</span>
                               </div>
                             </div>
-                            <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between">
-                              <span className="text-teal-600 font-black text-xs uppercase tracking-widest group-hover:translate-x-1 transition-transform flex items-center">
-                                View Full Profile <ArrowRight size={14} className="ml-1" />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <AnimatePresence>
+                    {filteredProfiles.map((profile, idx) => (
+                      <motion.div
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        transition={{ duration: 0.3, delay: Math.min(idx * 0.02, 0.2) }}
+                        key={profile.id}
+                        className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl premium-shadow premium-hover overflow-hidden group flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 cursor-pointer relative bg-white"
+                        onClick={() => setSelectedProfile(profile)}
+                      >
+                        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
+                        <div className="relative shrink-0 z-10">
+                          {profile.avatar_url ? (
+                            <img src={profile.avatar_url} alt={profile.name} className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-white object-contain shadow-md group-hover:scale-105 transition-transform duration-500" />
+                          ) : (
+                            <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-3xl font-black shadow-md group-hover:scale-105 transition-transform duration-500">
+                              {profile.name?.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="absolute -bottom-2 -right-2">
+                            <UserBadges profile={profile} size={20} />
+                          </div>
+                        </div>
+                        
+                        <div className="flex-1 min-w-0 z-10">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                            <h3 className="text-xl font-black text-slate-900 truncate group-hover:text-indigo-700 transition-colors tracking-tight">
+                              {profile.name}
+                            </h3>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-100">
+                                <FlaskConical size={12} className="mr-1.5"/> Batch {profile.chemistry_batch || 'N/A'}
                               </span>
-                              <div className="h-8 w-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center group-hover:bg-teal-600 group-hover:text-white transition-all">
-                                <ArrowRight size={16} />
-                              </div>
+                              {profile.blood_group && (
+                                <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-100">
+                                  <Activity size={12} className="mr-1.5"/> {profile.blood_group}
+                                </span>
+                              )}
                             </div>
                           </div>
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </div>
+                          
+                          <div className="text-sm text-slate-600 font-medium truncate mb-3">
+                            {profile.job_title || profile.current_status} {profile.job_title && profile.institute_name && ' at '} {profile.institute_name}
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                            {profile.location && (
+                              <div className="flex items-center gap-1.5">
+                                <MapPin size={14} className="text-slate-400" />
+                                <span className="truncate max-w-[150px]">{profile.location}</span>
+                              </div>
+                            )}
+                            {profile.email && (
+                              <div className="flex items-center gap-1.5">
+                                <Mail size={14} className="text-slate-400" />
+                                <span className="truncate max-w-[180px]">{profile.email}</span>
+                              </div>
+                            )}
+                            {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                              <div className="flex items-center gap-1.5">
+                                <Phone size={14} className="text-slate-400" />
+                                <span>{profile.phone}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="hidden sm:flex items-center justify-center h-10 w-10 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shrink-0 z-10">
+                          <ArrowRight size={18} />
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
-              ))}
+              )}
             </div>
           </motion.div>
         )}
@@ -1766,13 +2199,13 @@ create policy "Anyone can update their document." on storage.objects for update 
             {!isEditingProfile ? (
               <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden relative">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="h-48 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden">
+                <div className="h-48 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 relative overflow-hidden">
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
                   <Hexagon className="absolute -right-10 -top-10 w-64 h-64 text-white opacity-5 rotate-12" />
-                  <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-teal-300 opacity-10" />
+                  <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-indigo-300 opacity-10" />
                   <div className="absolute -bottom-16 left-10 group z-10">
                     {formData.avatar_url ? (
-                      <img src={formData.avatar_url} alt={formData.name} className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-white object-cover shadow-2xl group-hover:scale-105 transition-transform duration-500" />
+                      <img src={formData.avatar_url} alt={formData.name} className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-white object-contain shadow-2xl group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className="h-32 w-32 rounded-[2.5rem] border-4 border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-bold shadow-2xl group-hover:scale-105 transition-transform duration-500">
                         {formData.name?.charAt(0).toUpperCase()}
@@ -1786,13 +2219,13 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="mb-10 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 shadow-inner">
                     <div className="flex items-center space-x-5">
                       <div className={`p-4 rounded-2xl shadow-sm ${
-                        (formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com') ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                        (formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com' || formData.email === 'chembondhon@gmail.com') ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                         formData.verification_status === 'verified' ? 'bg-green-50 text-green-600 border border-green-100' :
                         formData.verification_status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                         formData.verification_status === 'rejected' ? 'bg-red-50 text-red-600 border border-red-100' :
                         'bg-slate-50 text-slate-400 border border-slate-200'
                       }`}>
-                        {(formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com') ? (
+                        {(formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com' || formData.email === 'chembondhon@gmail.com') ? (
                           <div className="flex items-center space-x-2">
                             <KingBadge size={32} />
                             {formData.verification_status === 'verified' && <VerifiedBadge size={32} animated={true} />}
@@ -1816,7 +2249,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       <button
                         type="button"
                         onClick={handleRequestVerification}
-                        className="bg-teal-600 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-teal-700 transition-all shadow-lg shadow-teal-100 premium-button"
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 premium-button"
                       >
                         Get Verified Now
                       </button>
@@ -1836,7 +2269,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <UserBadges profile={formData} size={32} />
                       </h2>
                       <div className="flex items-center mt-3 space-x-3">
-                        <span className="text-teal-700 font-bold bg-teal-50 px-3 py-1 rounded-lg text-sm border border-teal-100">
+                        <span className="text-indigo-700 font-bold bg-indigo-50 px-3 py-1 rounded-lg text-sm border border-indigo-100">
                           {formData.department}
                         </span>
                         <span className="text-slate-400 font-bold text-sm">•</span>
@@ -1849,7 +2282,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       onClick={() => setIsEditingProfile(true)}
                       className="bg-white text-slate-900 border border-slate-200 px-8 py-3 rounded-2xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm flex items-center premium-button"
                     >
-                      <Edit size={18} className="mr-2 text-teal-600" /> Edit Profile Settings
+                      <Edit size={18} className="mr-2 text-indigo-600" /> Edit Profile Settings
                     </button>
                   </div>
 
@@ -1859,7 +2292,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Academic Background</h3>
                         <div className="space-y-5">
                           <div className="flex items-center group">
-                            <div className="h-10 w-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mr-4 group-hover:bg-teal-600 group-hover:text-white transition-all">
+                            <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mr-4 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                               <GraduationCap size={20} />
                             </div>
                             <div>
@@ -1869,7 +2302,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           </div>
                           {formData.chemistry_batch && (
                             <div className="flex items-center group">
-                              <div className="h-10 w-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mr-4 group-hover:bg-teal-600 group-hover:text-white transition-all">
+                              <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mr-4 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                                 <FlaskConical size={20} />
                               </div>
                               <div>
@@ -1880,7 +2313,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           )}
                           {formData.student_id && (
                             <div className="flex items-center group">
-                              <div className="h-10 w-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mr-4 group-hover:bg-teal-600 group-hover:text-white transition-all">
+                              <div className="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mr-4 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                                 <BadgeCheck size={20} />
                               </div>
                               <div>
@@ -1896,7 +2329,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Professional Status</h3>
                         <div className="space-y-5">
                           <div className="flex items-center group">
-                            <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mr-4 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                            <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mr-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
                               <Briefcase size={20} />
                             </div>
                             <div>
@@ -1906,7 +2339,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           </div>
                           {formData.institute_name && (
                             <div className="flex items-center group">
-                              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mr-4 group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                              <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mr-4 group-hover:bg-blue-600 group-hover:text-white transition-all">
                                 <Building2 size={20} />
                               </div>
                               <div>
@@ -1932,14 +2365,14 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {formData.email && (
                             <div className="flex items-center p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                              <Mail size={16} className="text-teal-600 mr-3" />
+                              <Mail size={16} className="text-indigo-600 mr-3" />
                               <span className="text-xs font-bold text-slate-700 truncate">{formData.email}</span>
                             </div>
                           )}
                           {formData.phone && (
                             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
                               <div className="flex items-center truncate">
-                                <Phone size={16} className="text-teal-600 mr-3" />
+                                <Phone size={16} className="text-indigo-600 mr-3" />
                                 <span className="text-xs font-bold text-slate-700 truncate">{formData.phone}</span>
                                 {formData.is_phone_private && (
                                   <span className="ml-2 px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[8px] font-black uppercase rounded-md flex items-center">
@@ -1949,7 +2382,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                               </div>
                               <button 
                                 onClick={() => handleCopy(formData.phone!, 'profile-phone')}
-                                className="p-1.5 hover:bg-slate-200 rounded-lg transition-all text-slate-400 hover:text-teal-600"
+                                className="p-1.5 hover:bg-slate-200 rounded-lg transition-all text-slate-400 hover:text-indigo-600"
                                 title="Copy Number"
                               >
                                 {copiedId === 'profile-phone' ? <Check size={14} /> : <Copy size={14} />}
@@ -1989,12 +2422,12 @@ create policy "Anyone can update their document." on storage.objects for update 
             ) : (
               <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden relative">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-6 sm:p-10 border-b border-slate-100 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 flex flex-col sm:flex-row justify-between items-start sm:items-center relative overflow-hidden z-10">
+                <div className="p-6 sm:p-10 border-b border-slate-100 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 flex flex-col sm:flex-row justify-between items-start sm:items-center relative overflow-hidden z-10">
                   <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
                   <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12" />
                   <div className="relative z-10">
                     <h2 className="text-3xl font-black text-white tracking-tight">Edit Profile</h2>
-                    <p className="text-teal-100 mt-1 font-medium">Update your information in the Bondhon directory.</p>
+                    <p className="text-indigo-100 mt-1 font-medium">Update your information in the Bondhon directory.</p>
                   </div>
                   <div className="flex items-center space-x-3 mt-4 sm:mt-0 relative z-10">
                     <button
@@ -2008,7 +2441,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       type="button"
                       onClick={() => setFormData({ ...formData, is_public: !formData.is_public })}
                       className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg ${
-                        formData.is_public ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-slate-700 text-slate-200 shadow-slate-900/20'
+                        formData.is_public ? 'bg-blue-500 text-white shadow-blue-500/20' : 'bg-slate-700 text-slate-200 shadow-slate-900/20'
                       }`}
                     >
                       {formData.is_public ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -2022,13 +2455,13 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="flex items-center space-x-3">
                       <div className={`p-2 rounded-full ${
-                        (formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com') ? 'bg-amber-100 text-amber-600' :
+                        (formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com' || formData.email === 'chembondhon@gmail.com') ? 'bg-amber-100 text-amber-600' :
                         formData.verification_status === 'verified' ? 'bg-green-100 text-green-600' :
                         formData.verification_status === 'pending' ? 'bg-amber-100 text-amber-600' :
                         formData.verification_status === 'rejected' ? 'bg-red-100 text-red-600' :
                         'bg-slate-100 text-slate-400'
                       }`}>
-                        {(formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com') ? (
+                        {(formData.role === 'admin' || formData.email === 'fllimonm1212@gmail.com' || formData.email === 'chembondhon@gmail.com') ? (
                           <div className="flex items-center">
                             <KingBadge size={24} />
                             {formData.verification_status === 'verified' && <VerifiedBadge size={24} animated={true} />}
@@ -2052,7 +2485,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       <button
                         type="button"
                         onClick={handleRequestVerification}
-                        className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-teal-700 transition-colors shadow-sm"
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors shadow-sm"
                       >
                         Request Verification
                       </button>
@@ -2078,7 +2511,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 bg-teal-600 text-white p-2 rounded-full shadow-md hover:bg-teal-700 transition-colors"
+                      className="absolute bottom-0 right-0 bg-indigo-600 text-white p-2 rounded-full shadow-md hover:bg-indigo-700 transition-colors"
                       disabled={isUploading}
                     >
                       {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
@@ -2094,19 +2527,19 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
-                      <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                      <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.name || ''} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Session (e.g. 2019-20) *</label>
-                      <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" value={formData.batch || ''} onChange={(e) => setFormData({ ...formData, batch: e.target.value })} />
+                      <input required type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.batch || ''} onChange={(e) => setFormData({ ...formData, batch: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Chemistry Batch No. (e.g. 50th)</label>
-                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. 50th" value={formData.chemistry_batch || ''} onChange={(e) => setFormData({ ...formData, chemistry_batch: e.target.value })} />
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 50th" value={formData.chemistry_batch || ''} onChange={(e) => setFormData({ ...formData, chemistry_batch: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Student ID (Optional)</label>
-                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. 1910123456" value={formData.student_id || ''} onChange={(e) => setFormData({ ...formData, student_id: e.target.value })} />
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 1910123456" value={formData.student_id || ''} onChange={(e) => setFormData({ ...formData, student_id: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
@@ -2123,18 +2556,18 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Current Status *</label>
-                      <select required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none bg-white" value={formData.current_status || ''} onChange={(e) => setFormData({ ...formData, current_status: e.target.value as CurrentStatus })}>
+                      <select required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white" value={formData.current_status || ''} onChange={(e) => setFormData({ ...formData, current_status: e.target.value as CurrentStatus })}>
                         <option value="" disabled>Select Status</option>
                         {STATUS_OPTIONS.map(status => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Job Title / Position</label>
-                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. Software Engineer" value={formData.job_title || ''} onChange={(e) => setFormData({ ...formData, job_title: e.target.value })} />
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Software Engineer" value={formData.job_title || ''} onChange={(e) => setFormData({ ...formData, job_title: e.target.value })} />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Institute / Company Name</label>
-                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. Google" value={formData.institute_name || ''} onChange={(e) => setFormData({ ...formData, institute_name: e.target.value })} />
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Google" value={formData.institute_name || ''} onChange={(e) => setFormData({ ...formData, institute_name: e.target.value })} />
                     </div>
                   </div>
                 </div>
@@ -2144,11 +2577,25 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Current Location (City/Country)</label>
-                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. Dhaka, Bangladesh" value={formData.location || ''} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Dhaka, Bangladesh" value={formData.location || ''} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Permanent Address</label>
-                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="e.g. Rajshahi, Bangladesh" value={formData.permanent_address || ''} onChange={(e) => setFormData({ ...formData, permanent_address: e.target.value })} />
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Rajshahi, Bangladesh" value={formData.permanent_address || ''} onChange={(e) => setFormData({ ...formData, permanent_address: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Blood Group</label>
+                      <select className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white" value={formData.blood_group || ''} onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}>
+                        <option value="">Select Blood Group</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -2157,7 +2604,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">About</h3>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Bio / About Me</label>
-                    <textarea rows={4} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none resize-none" placeholder="Write a short bio about yourself..." value={formData.bio || ''} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} />
+                    <textarea rows={4} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none resize-none" placeholder="Write a short bio about yourself..." value={formData.bio || ''} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} />
                   </div>
                 </div>
 
@@ -2180,26 +2627,26 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-                      <input type="tel" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="01XXXXXXXXX" value={formData.phone || ''} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                      <input type="tel" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="01XXXXXXXXX" value={formData.phone || ''} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
                       <p className="text-[10px] text-slate-400 mt-1 font-medium">Use the toggle above to hide your number from others.</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                      <input type="email" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="email@example.com" value={formData.email || ''} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                      <input type="email" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="email@example.com" value={formData.email || ''} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Facebook URL</label>
-                      <input type="url" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="https://facebook.com/..." value={formData.social_links?.facebook || ''} onChange={(e) => setFormData({ ...formData, social_links: { ...formData.social_links, facebook: e.target.value } })} />
+                      <input type="url" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://facebook.com/..." value={formData.social_links?.facebook || ''} onChange={(e) => setFormData({ ...formData, social_links: { ...formData.social_links, facebook: e.target.value } })} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn URL</label>
-                      <input type="url" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" placeholder="https://linkedin.com/in/..." value={formData.social_links?.linkedin || ''} onChange={(e) => setFormData({ ...formData, social_links: { ...formData.social_links, linkedin: e.target.value } })} />
+                      <input type="url" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://linkedin.com/in/..." value={formData.social_links?.linkedin || ''} onChange={(e) => setFormData({ ...formData, social_links: { ...formData.social_links, linkedin: e.target.value } })} />
                     </div>
                   </div>
                 </div>
 
                 <div className="pt-6">
-                  <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-xl shadow-sm transition-colors flex justify-center items-center space-x-2">
+                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl shadow-sm transition-colors flex justify-center items-center space-x-2">
                     <UserIcon size={20} />
                     <span>Save My Profile</span>
                   </button>
@@ -2225,7 +2672,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               </div>
               <button
                 onClick={() => setShowEventForm(!showEventForm)}
-                className="bg-teal-600 text-white px-8 py-4 rounded-2xl font-bold text-sm hover:bg-teal-700 transition-all shadow-lg shadow-teal-100 flex items-center premium-button"
+                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center premium-button"
               >
                 {showEventForm ? <X size={18} className="mr-2" /> : <Calendar size={18} className="mr-2" />}
                 {showEventForm ? 'Close Form' : 'Host New Event'}
@@ -2244,7 +2691,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           required
                           type="text"
                           placeholder="e.g., Annual Alumni Gala 2024"
-                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-medium"
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                           value={eventForm.title}
                           onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
                         />
@@ -2253,7 +2700,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Description</label>
                         <textarea
                           placeholder="What's the plan? Share the excitement..."
-                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-medium h-32 resize-none"
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium h-32 resize-none"
                           value={eventForm.description}
                           onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
                         ></textarea>
@@ -2264,7 +2711,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <div>
                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Event Type</label>
                           <select 
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-medium bg-white"
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium bg-white"
                             value={eventForm.event_type}
                             onChange={(e) => setEventForm({ ...eventForm, event_type: e.target.value as EventType })}
                           >
@@ -2281,7 +2728,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           <input
                             required
                             type="datetime-local"
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-medium"
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                             value={eventForm.event_date}
                             onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
                           />
@@ -2294,7 +2741,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           <input
                             type="text"
                             placeholder="Where is it happening?"
-                            className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-medium"
+                            className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                             value={eventForm.location}
                             onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
                           />
@@ -2303,7 +2750,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                       <button
                         type="submit"
                         disabled={isCreatingEvent}
-                        className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 text-white py-4 rounded-2xl font-black text-sm hover:from-teal-700 hover:to-emerald-700 transition-all shadow-lg shadow-teal-100 disabled:opacity-50 premium-button mt-2"
+                        className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button mt-2"
                       >
                         {isCreatingEvent ? 'Creating Event...' : 'Launch Event'}
                       </button>
@@ -2324,28 +2771,27 @@ create policy "Anyone can update their document." on storage.objects for update 
                     key={event.id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ y: -5 }}
-                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow overflow-hidden flex flex-col border-slate-100 group relative"
+                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow premium-hover overflow-hidden flex flex-col border-slate-100 group relative"
                   >
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                     <div className="p-5 sm:p-8 flex-grow relative z-10">
                       <div className="flex justify-between items-start mb-6">
-                        <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-teal-50 text-teal-700 border border-teal-100">
+                        <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-700 border border-indigo-100">
                           {event.event_type}
                         </span>
                         <div className="flex items-center space-x-1 text-slate-400 font-bold text-xs">
-                          <Users size={14} className="text-teal-500" />
+                          <Users size={14} className="text-indigo-500" />
                           <span>{rsvpCount} attending</span>
                         </div>
                       </div>
                       
-                      <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight group-hover:text-teal-700 transition-colors">
+                      <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight group-hover:text-indigo-700 transition-colors">
                         {event.title}
                       </h3>
                       
                       <div className="space-y-3 mb-6">
                         <div className="flex items-center text-sm font-bold text-slate-600 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
-                          <CalendarDays size={18} className="mr-3 text-teal-600" />
+                          <CalendarDays size={18} className="mr-3 text-indigo-600" />
                           {new Date(event.event_date).toLocaleString('en-US', { 
                             weekday: 'short', 
                             month: 'short', 
@@ -2356,7 +2802,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         </div>
                         {event.location && (
                           <div className="flex items-center text-sm font-bold text-slate-600 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
-                            <MapPin size={18} className="mr-3 text-teal-600" />
+                            <MapPin size={18} className="mr-3 text-indigo-600" />
                             <span className="truncate">{event.location}</span>
                           </div>
                         )}
@@ -2404,7 +2850,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           onClick={() => handleRSVP(event.id, 'Going')} 
                           className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center ${
                             isGoing 
-                              ? 'bg-teal-600 text-white shadow-lg shadow-teal-100' 
+                              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
                               : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
                           }`}
                         >
@@ -2442,7 +2888,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               <p className="text-slate-500 mt-2 font-medium">Quick access to the profiles you've bookmarked.</p>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <div className="flex overflow-x-auto gap-8 pb-8 snap-x snap-mandatory hide-scrollbar -mx-4 px-4 sm:-mx-8 sm:px-8">
               {profiles.filter(p => bookmarks.has(p.id)).map(profile => (
                 <motion.div
                   key={profile.id}
@@ -2450,26 +2896,37 @@ create policy "Anyone can update their document." on storage.objects for update 
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   whileHover={{ y: -8 }}
-                  className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden group cursor-pointer border-slate-100 hover:border-teal-400/50 hover:shadow-teal-900/5 transition-all duration-500 relative"
+                  id={`saved-profile-card-${profile.id}`}
+                  className="glass-card min-w-[280px] max-w-[300px] snap-center shrink-0 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover overflow-hidden group cursor-pointer border-slate-100 hover:border-indigo-400/50 hover:shadow-indigo-900/5 transition-all duration-500 relative bg-white"
                   onClick={() => setSelectedProfile(profile)}
                 >
-                  <div className="h-28 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative overflow-hidden w-full">
+                  <div className="h-28 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 relative overflow-hidden w-full">
                     <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
                     <Hexagon className="absolute -right-6 -top-6 w-32 h-32 text-white opacity-5 rotate-12 group-hover:rotate-45 transition-transform duration-700" />
-                    <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-teal-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
-                      className="absolute top-4 right-4 p-2 bg-white/10 backdrop-blur-md text-white/80 rounded-xl hover:bg-white/20 hover:text-white transition-all shadow-sm border border-white/10"
-                    >
-                      <Bookmark size={18} className="fill-current text-yellow-400" />
-                    </button>
+                    <Atom className="absolute -left-4 -bottom-4 w-24 h-24 text-indigo-300 opacity-10 group-hover:scale-110 transition-transform duration-700" />
+                    <div className="absolute top-4 right-4 z-10 flex items-center space-x-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); downloadSpecificCard(`saved-profile-card-${profile.id}`, profile.name); }}
+                        disabled={downloadingCardId === `saved-profile-card-${profile.id}`}
+                        className="bg-white/10 backdrop-blur-md p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/20 transition-all border border-white/10 disabled:opacity-50"
+                        title="Download Card"
+                      >
+                        {downloadingCardId === `saved-profile-card-${profile.id}` ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(profile.id); }}
+                        className="p-2 bg-white/10 backdrop-blur-md text-white/80 rounded-xl hover:bg-white/20 hover:text-white transition-all shadow-sm border border-white/10"
+                      >
+                        <Bookmark size={18} className="fill-current text-yellow-400" />
+                      </button>
+                    </div>
                   </div>
                   
                   <div className="px-5 sm:px-8 pb-8 flex flex-col items-center text-center relative -mt-14 z-10">
                     <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10 mt-14"></div>
                     <div className="relative mb-4">
                       {profile.avatar_url ? (
-                        <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-[2rem] object-cover border-[6px] border-white bg-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                        <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-[2rem] object-contain border-[6px] border-white bg-white shadow-xl group-hover:scale-105 transition-transform duration-500" />
                       ) : (
                         <div className="h-28 w-28 rounded-[2rem] bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black border-[6px] border-white shadow-xl group-hover:scale-105 transition-transform duration-500">
                           {profile.name.charAt(0).toUpperCase()}
@@ -2483,7 +2940,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     <h3 className="text-xl font-black text-slate-900 line-clamp-1 tracking-tight mb-1">
                       {profile.name}
                     </h3>
-                    <p className="text-sm text-teal-700 font-bold mb-1 line-clamp-1 bg-teal-50 px-3 py-1 rounded-lg border border-teal-100/50 inline-block">
+                    <p className="text-sm text-indigo-700 font-bold mb-1 line-clamp-1 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100/50 inline-block">
                       {profile.job_title || profile.current_status}
                     </p>
                     <p className="text-xs text-slate-500 font-bold line-clamp-1 uppercase tracking-widest mb-4">
@@ -2494,17 +2951,17 @@ create policy "Anyone can update their document." on storage.objects for update 
                       <div className="flex flex-wrap justify-center gap-2 mb-3">
                         {profile.location && (
                           <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
-                            <MapPin size={12} className="mr-1.5 text-teal-600"/> {profile.location}
+                            <MapPin size={12} className="mr-1.5 text-indigo-600"/> {profile.location}
                           </span>
                         )}
                         <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200">
-                          <FlaskConical size={12} className="mr-1.5 text-teal-600"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
+                          <FlaskConical size={12} className="mr-1.5 text-indigo-600"/> {profile.chemistry_batch ? `Batch ${profile.chemistry_batch}` : 'N/A'}
                         </span>
                       </div>
                       
                       {profile.department && profile.university && (
                         <div className="flex items-start gap-2.5">
-                          <Atom size={14} className="text-teal-500 shrink-0 mt-0.5" />
+                          <Atom size={14} className="text-indigo-500 shrink-0 mt-0.5" />
                           <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
                         </div>
                       )}
@@ -2530,9 +2987,14 @@ create policy "Anyone can update their document." on storage.objects for update 
                   </div>
                   
                   <div className="px-5 sm:px-8 pb-8">
-                    <button className="w-full py-3.5 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-teal-600 transition-all premium-button shadow-lg shadow-slate-200">
+                    <button className="w-full py-3.5 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-600 transition-all premium-button shadow-lg shadow-slate-200">
                       View Full Profile
                     </button>
+                  </div>
+                  {/* Watermark for download */}
+                  <div className="download-watermark hidden absolute bottom-4 right-4 items-center space-x-2 opacity-20 pointer-events-none">
+                    <Atom size={24} className="text-indigo-900" />
+                    <span className="font-black text-indigo-900 tracking-widest uppercase text-sm">Bondhon</span>
                   </div>
                 </motion.div>
               ))}
@@ -2546,7 +3008,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <p className="text-slate-500 mt-2 font-medium">Bookmark profiles from the directory to build your network.</p>
                   <button 
                     onClick={() => setActiveTab('directory')}
-                    className="mt-8 bg-teal-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:bg-teal-700 transition-all premium-button"
+                    className="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all premium-button"
                   >
                     Explore Directory
                   </button>
@@ -2554,6 +3016,16 @@ create policy "Anyone can update their document." on storage.objects for update 
               )}
             </div>
           </motion.div>
+        )}
+
+        {activeTab === 'messages' && (
+          <Messages 
+            currentUser={currentUser} 
+            profiles={profiles} 
+            syncStatus={syncStatus} 
+            initialTargetId={targetProfileId}
+            onChatStarted={() => setTargetProfileId(null)}
+          />
         )}
 
         {activeTab === 'admin' && isAdmin && (
@@ -2565,16 +3037,16 @@ create policy "Anyone can update their document." on storage.objects for update 
             transition={{ duration: 0.3 }}
             className="max-w-5xl mx-auto space-y-8"
           >
-            <div className="flex justify-between items-center">
+            <div className="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl premium-shadow flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">Admin Dashboard</h2>
                 <p className="text-slate-500 mt-1">Manage users, view analytics, and export data.</p>
               </div>
-              <div className="flex items-center space-x-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <select
                   value={exportBatch}
                   onChange={(e) => setExportBatch(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                 >
                   <option value="">All Univ. Batches</option>
                   {uniqueBatches.map(batch => (
@@ -2584,7 +3056,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 <select
                   value={exportChemistryBatch}
                   onChange={(e) => setExportChemistryBatch(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
                 >
                   <option value="">All Chem. Batches</option>
                   {uniqueChemistryBatches.map(batch => (
@@ -2594,7 +3066,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 <button onClick={handleExportPDF} className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors flex items-center shadow-sm">
                   <FileText size={16} className="mr-2" /> Export PDF
                 </button>
-                <button onClick={handleExportCSV} className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex items-center shadow-sm">
+                <button onClick={handleExportCSV} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center shadow-sm">
                   <Database size={16} className="mr-2" /> Export CSV
                 </button>
               </div>
@@ -2602,9 +3074,9 @@ create policy "Anyone can update their document." on storage.objects for update 
 
             {/* Analytics Dashboard */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-4 bg-teal-50 text-teal-600 rounded-2xl shadow-sm relative z-10">
+                <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm relative z-10">
                   <Users size={32} />
                 </div>
                 <div className="relative z-10">
@@ -2612,7 +3084,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.length}</h3>
                 </div>
               </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm relative z-10">
                   <MessageSquare size={32} />
@@ -2622,7 +3094,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
                 </div>
               </motion.div>
-              <motion.div whileHover={{ y: -5 }} className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm relative z-10">
                   <Calendar size={32} />
@@ -2639,7 +3111,7 @@ create policy "Anyone can update their document." on storage.objects for update 
               <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
               <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center relative z-10">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-100">
+                  <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
                     <Crown size={20} />
                   </div>
                   <h3 className="text-xl font-black text-slate-900 tracking-tight">Verification Requests</h3>
@@ -2689,7 +3161,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           </button>
                           <button 
                             onClick={() => handleVerifyProfile(p.id, 'verified')}
-                            className="bg-teal-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-700 transition-all shadow-lg shadow-teal-100"
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
                           >
                             Approve
                           </button>
@@ -2741,14 +3213,14 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.email}</td>
                         <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.batch || '-'}</td>
                         <td className="px-8 py-5 text-sm">
-                          {p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' ? (
+                          {p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com' ? (
                             <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-100">Admin</span>
                           ) : (
                             <span className="bg-slate-50 text-slate-400 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-100">Member</span>
                           )}
                         </td>
                         <td className="px-8 py-5 text-sm text-right space-x-4">
-                          <button onClick={() => setSelectedProfile(p)} className="text-teal-600 hover:text-teal-800 font-black text-[10px] uppercase tracking-widest">View</button>
+                          <button onClick={() => setSelectedProfile(p)} className="text-indigo-600 hover:text-indigo-800 font-black text-[10px] uppercase tracking-widest">View</button>
                           <button onClick={() => setUserToDelete({id: p.id, name: p.name})} className="text-red-500 hover:text-red-700 font-black text-[10px] uppercase tracking-widest">Remove</button>
                         </td>
                       </tr>
@@ -2775,14 +3247,14 @@ create policy "Anyone can update their document." on storage.objects for update 
                       <input 
                         required 
                         type="email" 
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-teal-500 focus:bg-white outline-none transition-all font-bold text-slate-700" 
+                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-bold text-slate-700" 
                         placeholder="Enter registered email..."
                         value={adminEmailToAdd} 
                         onChange={e => setAdminEmailToAdd(e.target.value)} 
                       />
                       <p className="text-[10px] text-slate-400 font-bold mt-3 ml-1 uppercase tracking-tight">Note: User must already have an account.</p>
                     </div>
-                    <button type="submit" disabled={isAddingAdmin} className="w-full bg-slate-900 text-white font-black py-4 px-6 rounded-2xl hover:bg-teal-600 transition-all disabled:opacity-50 uppercase text-xs tracking-widest premium-button">
+                    <button type="submit" disabled={isAddingAdmin} className="w-full bg-slate-900 text-white font-black py-4 px-6 rounded-2xl hover:bg-indigo-600 transition-all disabled:opacity-50 uppercase text-xs tracking-widest premium-button">
                       {isAddingAdmin ? 'Processing...' : 'Grant Admin Privileges'}
                     </button>
                   </form>
@@ -2794,7 +3266,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="relative z-10 flex-grow flex flex-col">
                   <div className="flex items-center space-x-4 mb-8">
-                    <div className="p-3 bg-teal-50 text-teal-600 rounded-2xl">
+                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
                       <Database size={24} />
                     </div>
                     <h3 className="text-2xl font-black text-slate-900 tracking-tight">Bulk Operations</h3>
@@ -2803,15 +3275,15 @@ create policy "Anyone can update their document." on storage.objects for update 
                     <p className="font-bold">To bulk upload members, use the Supabase Infrastructure:</p>
                     <ul className="space-y-3">
                       <li className="flex items-start">
-                        <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">1</div>
+                        <div className="h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">1</div>
                         <span className="font-medium">Access Supabase Dashboard</span>
                       </li>
                       <li className="flex items-start">
-                        <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">2</div>
+                        <div className="h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">2</div>
                         <span className="font-medium">Authentication &gt; Users &gt; Import</span>
                       </li>
                       <li className="flex items-start">
-                        <div className="h-5 w-5 rounded-full bg-teal-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">3</div>
+                        <div className="h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">3</div>
                         <span className="font-medium">Upload CSV with required headers</span>
                       </li>
                     </ul>
@@ -2831,7 +3303,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 <h3 className="text-xl font-black text-slate-900 tracking-tight">Current Admins</h3>
               </div>
               <div className="divide-y divide-slate-100 relative z-10">
-                {profiles.filter(p => p.role === 'admin' || p.email === 'fllimonm1212@gmail.com').map(admin => (
+                {profiles.filter(p => p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com').map(admin => (
                   <div key={admin.id} className="px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       {admin.avatar_url ? (
@@ -2876,24 +3348,37 @@ create policy "Anyone can update their document." on storage.objects for update 
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 40 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] shadow-2xl relative flex flex-col premium-shadow border border-slate-100"
+              className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] shadow-2xl relative premium-shadow border border-slate-100"
             >
-              <button 
-                onClick={() => setSelectedProfile(null)}
-                className="absolute top-6 right-6 z-20 bg-white/20 hover:bg-white/40 text-white rounded-2xl p-3 transition-all backdrop-blur-md border border-white/30 shadow-xl"
-              >
-                <X size={24} />
-              </button>
-
-              {/* Cover & Avatar */}
-              <div className="h-48 sm:h-64 bg-gradient-to-br from-slate-900 via-teal-900 to-emerald-800 relative shrink-0 overflow-hidden">
-                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-                <Hexagon className="absolute -right-10 -top-10 w-64 h-64 text-white opacity-5 rotate-12" />
-                <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-teal-300 opacity-10" />
-                <div className="absolute inset-0 opacity-20">
-                  <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2),transparent_70%)]"></div>
+              <div className="sticky top-0 right-0 z-50 flex justify-end p-6 pointer-events-none mb-[-5rem]">
+                <div className="flex items-center space-x-3 pointer-events-auto">
+                  <button 
+                    onClick={() => downloadSpecificCard('modal-profile-card', selectedProfile.name)}
+                    disabled={downloadingCardId === 'modal-profile-card'}
+                    className="bg-slate-900/40 hover:bg-slate-900/60 text-white rounded-2xl p-3 transition-all backdrop-blur-md border border-white/20 shadow-xl disabled:opacity-50 flex items-center justify-center"
+                    title="Download Profile Card"
+                  >
+                    {downloadingCardId === 'modal-profile-card' ? <Loader2 size={24} className="animate-spin" /> : <Camera size={24} />}
+                  </button>
+                  <button 
+                    onClick={() => setSelectedProfile(null)}
+                    className="bg-slate-900/40 hover:bg-slate-900/60 text-white rounded-2xl p-3 transition-all backdrop-blur-md border border-white/20 shadow-xl flex items-center justify-center"
+                  >
+                    <X size={24} />
+                  </button>
                 </div>
               </div>
+
+              <div id="modal-profile-card" ref={profileCardRef} className="flex flex-col bg-white rounded-[3rem] overflow-hidden">
+                {/* Cover & Avatar */}
+                <div className="h-48 sm:h-64 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 relative shrink-0 overflow-hidden">
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+                  <Hexagon className="absolute -right-10 -top-10 w-64 h-64 text-white opacity-5 rotate-12" />
+                  <Atom className="absolute left-10 -bottom-10 w-48 h-48 text-indigo-300 opacity-10" />
+                  <div className="absolute inset-0 opacity-20">
+                    <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2),transparent_70%)]"></div>
+                  </div>
+                </div>
               
               <div className="px-8 sm:px-16 pb-16 relative z-10">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
@@ -2901,7 +3386,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   <div className="flex flex-col">
                     <div className="-mt-24 sm:-mt-32 mb-6 relative inline-block">
                       {selectedProfile.avatar_url ? (
-                        <img src={selectedProfile.avatar_url} alt={selectedProfile.name} className="h-40 w-40 sm:h-48 sm:w-48 rounded-[3rem] border-[6px] border-white bg-white object-cover shadow-2xl" />
+                        <img src={selectedProfile.avatar_url} alt={selectedProfile.name} className="h-40 w-40 sm:h-48 sm:w-48 rounded-[3rem] border-[6px] border-white bg-white object-contain shadow-2xl" />
                       ) : (
                         <div className="h-40 w-40 sm:h-48 sm:w-48 rounded-[3rem] border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-6xl font-black shadow-2xl">
                           {selectedProfile.name?.charAt(0).toUpperCase()}
@@ -2920,8 +3405,8 @@ create policy "Anyone can update their document." on storage.objects for update 
                           <Clock size={14} className="mr-2" /> Verification Pending
                         </div>
                       )}
-                      <div className="text-teal-700 font-black mt-3 flex flex-wrap items-center gap-3 text-sm uppercase tracking-widest">
-                        <span className="bg-teal-50 px-3 py-1 rounded-lg">{selectedProfile.department}</span>
+                      <div className="text-indigo-700 font-black mt-3 flex flex-wrap items-center gap-3 text-sm uppercase tracking-widest">
+                        <span className="bg-indigo-50 px-3 py-1 rounded-lg">{selectedProfile.department}</span>
                         <span className="text-slate-300">•</span>
                         <span className="bg-slate-50 text-slate-500 px-3 py-1 rounded-lg">{selectedProfile.university}</span>
                       </div>
@@ -2939,7 +3424,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     </button>
                     {selectedProfile.phone && (!selectedProfile.is_phone_private || currentUser?.id === selectedProfile.id || isAdmin) && (
                       <div className="flex gap-2">
-                        <a href={`tel:${selectedProfile.phone}`} className="flex items-center justify-center h-14 px-8 rounded-2xl bg-teal-600 text-white hover:bg-teal-700 transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-teal-100 premium-button">
+                        <a href={`tel:${selectedProfile.phone}`} className="flex items-center justify-center h-14 px-8 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100 premium-button">
                           <Phone size={18} className="mr-2" /> Call Now
                         </a>
                         <button 
@@ -2947,7 +3432,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                           className="flex items-center justify-center h-14 w-14 rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all shadow-lg shadow-slate-100"
                           title="Copy Number"
                         >
-                          {copiedId === selectedProfile.id ? <Check size={18} className="text-teal-600" /> : <Copy size={18} />}
+                          {copiedId === selectedProfile.id ? <Check size={18} className="text-indigo-600" /> : <Copy size={18} />}
                         </button>
                       </div>
                     )}
@@ -2961,6 +3446,19 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <Mail size={18} className="mr-2" /> Send Email
                       </a>
                     )}
+                    {currentUser?.id !== selectedProfile.id && (
+                      <button 
+                        onClick={() => {
+                          setTargetProfileId(selectedProfile.id);
+                          setSelectedProfile(null);
+                          setActiveTab('messages');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="flex items-center justify-center h-14 px-8 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100 premium-button"
+                      >
+                        <MessageSquare size={18} className="mr-2" /> Message
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2970,7 +3468,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                     {selectedProfile.bio && (
                       <section>
                         <div className="flex items-center space-x-3 mb-6">
-                          <div className="p-2 bg-teal-50 text-teal-600 rounded-xl">
+                          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
                             <UserIcon size={20} />
                           </div>
                           <h3 className="text-xl font-black text-slate-900 tracking-tight">Professional Bio</h3>
@@ -2983,7 +3481,7 @@ create policy "Anyone can update their document." on storage.objects for update 
 
                     <section>
                       <div className="flex items-center space-x-3 mb-6">
-                        <div className="p-2 bg-teal-50 text-teal-600 rounded-xl">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
                           <Briefcase size={20} />
                         </div>
                         <h3 className="text-xl font-black text-slate-900 tracking-tight">Career & Status</h3>
@@ -3006,7 +3504,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Position</div>
                             <div className="text-right sm:text-right">
                               <div className="text-lg font-black text-slate-900 tracking-tight">{selectedProfile.job_title || 'Employee'}</div>
-                              <div className="text-teal-600 font-bold text-sm mt-1">{selectedProfile.institute_name}</div>
+                              <div className="text-indigo-600 font-bold text-sm mt-1">{selectedProfile.institute_name}</div>
                             </div>
                           </div>
                         )}
@@ -3022,7 +3520,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         <h3 className="text-[10px] font-black text-slate-400 mb-8 uppercase tracking-widest">Academic & Location</h3>
                         <div className="space-y-8">
                         <div className="flex items-start space-x-4">
-                          <div className="p-2.5 bg-white rounded-xl shadow-sm text-teal-600">
+                          <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-600">
                             <GraduationCap size={20} />
                           </div>
                           <div>
@@ -3031,14 +3529,14 @@ create policy "Anyone can update their document." on storage.objects for update 
                               {selectedProfile.chemistry_batch ? `${selectedProfile.chemistry_batch} Batch ` : ''}
                               {selectedProfile.batch ? `(${selectedProfile.batch})` : 'N/A'}
                               {selectedProfile.student_id && (
-                                <div className="text-[10px] text-teal-600 mt-1">ID: {selectedProfile.student_id}</div>
+                                <div className="text-[10px] text-indigo-600 mt-1">ID: {selectedProfile.student_id}</div>
                               )}
                             </div>
                           </div>
                         </div>
                         {selectedProfile.location && (
                           <div className="flex items-start space-x-4">
-                            <div className="p-2.5 bg-white rounded-xl shadow-sm text-teal-600">
+                            <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-600">
                               <MapPin size={20} />
                             </div>
                             <div>
@@ -3049,7 +3547,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                         )}
                         {selectedProfile.permanent_address && (
                           <div className="flex items-start space-x-4">
-                            <div className="p-2.5 bg-white rounded-xl shadow-sm text-teal-600">
+                            <div className="p-2.5 bg-white rounded-xl shadow-sm text-indigo-600">
                               <Map size={20} />
                             </div>
                             <div>
@@ -3058,23 +3556,34 @@ create policy "Anyone can update their document." on storage.objects for update 
                             </div>
                           </div>
                         )}
+                        {selectedProfile.blood_group && (
+                          <div className="flex items-start space-x-4">
+                            <div className="p-2.5 bg-white rounded-xl shadow-sm text-rose-600">
+                              <Activity size={20} />
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Blood Group</div>
+                              <div className="text-sm font-black text-slate-900 tracking-tight">{selectedProfile.blood_group}</div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       </div>
                     </section>
 
                     {(selectedProfile.social_links?.facebook || selectedProfile.social_links?.linkedin) && (
-                      <section className="glass-card bg-slate-900 rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200 relative overflow-hidden">
+                      <section className="glass-card rounded-2xl sm:rounded-[2.5rem] p-5 sm:p-8 shadow-sm relative overflow-hidden">
                         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                         <div className="relative z-10">
                           <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">Digital Presence</h3>
                           <div className="flex gap-4">
                           {selectedProfile.social_links.facebook && (
-                            <a href={selectedProfile.social_links.facebook} target="_blank" rel="noopener noreferrer" className="flex-1 bg-white/10 hover:bg-white/20 p-4 rounded-2xl text-white transition-all flex items-center justify-center border border-white/10">
+                            <a href={selectedProfile.social_links.facebook} target="_blank" rel="noopener noreferrer" className="flex-1 bg-blue-50 hover:bg-blue-100 p-4 rounded-2xl text-blue-600 transition-all flex items-center justify-center border border-blue-100 shadow-sm">
                               <Facebook size={24} />
                             </a>
                           )}
                           {selectedProfile.social_links.linkedin && (
-                            <a href={selectedProfile.social_links.linkedin} target="_blank" rel="noopener noreferrer" className="flex-1 bg-white/10 hover:bg-white/20 p-4 rounded-2xl text-white transition-all flex items-center justify-center border border-white/10">
+                            <a href={selectedProfile.social_links.linkedin} target="_blank" rel="noopener noreferrer" className="flex-1 bg-sky-50 hover:bg-sky-100 p-4 rounded-2xl text-sky-600 transition-all flex items-center justify-center border border-sky-100 shadow-sm">
                               <Linkedin size={24} />
                             </a>
                           )}
@@ -3084,6 +3593,12 @@ create policy "Anyone can update their document." on storage.objects for update 
                     )}
                   </div>
                 </div>
+                {/* Watermark for download */}
+                <div className="download-watermark hidden absolute bottom-8 right-8 items-center space-x-3 opacity-20 pointer-events-none">
+                  <Atom size={32} className="text-indigo-900" />
+                  <span className="font-black text-indigo-900 tracking-widest uppercase text-xl">Bondhon</span>
+                </div>
+              </div>
               </div>
             </motion.div>
           </motion.div>
@@ -3169,7 +3684,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                 </div>
                 <form onSubmit={handleUpdatePost}>
                   <textarea
-                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none resize-none text-slate-800 bg-white/50 backdrop-blur-sm"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-slate-800 bg-white/50 backdrop-blur-sm"
                     rows={6}
                     value={editingPost.content}
                     onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
@@ -3178,7 +3693,7 @@ create policy "Anyone can update their document." on storage.objects for update 
                   />
                   <div className="flex justify-end space-x-3 mt-6">
                     <button type="button" onClick={() => setEditingPost(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Cancel</button>
-                    <button type="submit" className="px-6 py-2 bg-teal-600 text-white rounded-lg font-bold hover:bg-teal-700 transition-colors shadow-md">Save Changes</button>
+                    <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Save Changes</button>
                   </div>
                 </form>
               </div>
