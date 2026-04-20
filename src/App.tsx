@@ -980,6 +980,7 @@ export default function App() {
       console.error('Error updating verification status:', error);
       alert('Failed to update verification status.');
     } else {
+      alert(`Profile ${status === 'verified' ? 'approved' : 'rejected'} successfully.`);
       fetchProfiles();
       if (profileId === currentUser?.id) {
         fetchMyProfile();
@@ -1233,28 +1234,68 @@ export default function App() {
 
   const confirmDeleteUser = async () => {
     if (!userToDelete) return;
-    const { error } = await supabase.from('profiles').delete().eq('id', userToDelete.id);
-    if (error) {
-      console.error("Error deleting user:", error);
-    } else {
-      fetchProfiles();
+    
+    // Safety check - don't allow deleting self through this UI
+    if (userToDelete.id === currentUser?.id) {
+      alert("You cannot delete your own admin account from here.");
+      setUserToDelete(null);
+      return;
     }
-    setUserToDelete(null);
+
+    try {
+      console.log("Attempting to delete user:", userToDelete.id);
+      const { error, status } = await supabase.from('profiles').delete().eq('id', userToDelete.id);
+      
+      if (error) {
+        console.error("Supabase deletion error:", error);
+        alert(`Failed to remove member.\nError: ${error.message}\nCode: ${error.code}\nStatus: ${status}`);
+      } else {
+        alert('Member removed successfully and database synchronized.');
+        fetchProfiles();
+      }
+    } catch (err: any) {
+      console.error("Unexpected deletion error:", err);
+      alert('An unexpected error occurred during deletion: ' + (err.message || 'Check console for details'));
+    } finally {
+      setUserToDelete(null);
+    }
   };
 
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminEmailToAdd) return;
     setIsAddingAdmin(true);
+    
+    // Check if user exists first
+    const { data: userExists, error: searchError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', adminEmailToAdd)
+      .single();
+
+    if (searchError || !userExists) {
+      alert('No user found with this email. Make sure they have registered.');
+      setIsAddingAdmin(false);
+      return;
+    }
+
     const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('email', adminEmailToAdd);
     setIsAddingAdmin(false);
     if (error) {
-      alert('Failed to add admin. Make sure the user has registered and their email matches.');
+      alert('Failed to add admin: ' + error.message);
     } else {
       alert('Admin added successfully!');
       setAdminEmailToAdd('');
       fetchProfiles();
     }
+  };
+
+  const toggleUserRole = async (profileId: string, currentRole: string) => {
+    if (!isAdmin) return;
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', profileId);
+    if (error) alert('Failed to update role');
+    else fetchProfiles();
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -1673,19 +1714,34 @@ drop policy if exists "bookmarks_owner" on bookmarks;
 alter table profiles enable row level security;
 create policy "profiles_all" on profiles for select using (true);
 create policy "profiles_self" on profiles for all using (auth.uid() = id);
+create policy "profiles_admin" on profiles for all using (
+  auth.jwt() ->> 'email' = 'chembondhon@gmail.com' 
+  OR auth.jwt() ->> 'email' = 'fllimonm1212@gmail.com'
+  OR (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+);
 
 alter table posts enable row level security;
 create policy "posts_all" on posts for select using (true);
 create policy "posts_write" on posts for insert with check (auth.uid() = author_id);
-create policy "posts_owner" on posts for all using (auth.uid() = author_id);
+create policy "posts_owner" on posts for all using (
+  auth.uid() = author_id 
+  OR (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
+);
 
 alter table site_config enable row level security;
 create policy "config_all" on site_config for select using (true);
-create policy "config_admin" on site_config for all using (true);
+create policy "config_admin" on site_config for all using (
+  (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
+);
 
 alter table alumni_events enable row level security;
 create policy "events_all" on alumni_events for select using (true);
-create policy "events_admin" on alumni_events for all using (true);
+create policy "events_admin" on alumni_events for all using (
+  (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
+);
 
 alter table event_rsvps enable row level security;
 create policy "rsvps_all" on event_rsvps for select using (true);
@@ -1974,7 +2030,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{new Date(post.created_at).toLocaleDateString()} • {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
                           </div>
-                          {currentUser?.id === post.author_id && (
+                          {(currentUser?.id === post.author_id || isAdmin) && (
                             <button 
                               onClick={() => {
                                 if (window.confirm('Are you sure you want to delete this post?')) {
@@ -2039,7 +2095,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   </div>
                   <input
                     type="text"
-                    placeholder="Search by name, batch, location, company..."
+                    placeholder="Search students or alumni by name, batch, location..."
                     className="block w-full pl-12 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all text-sm font-medium"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -3428,7 +3484,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
             </div>
 
             {/* Analytics Dashboard */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm relative z-10">
@@ -3447,6 +3503,28 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                 <div className="relative z-10">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Events</p>
                   <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{events.length}</h3>
+                </div>
+              </motion.div>
+              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm relative z-10">
+                  <MessageSquare size={32} />
+                </div>
+                <div className="relative z-10">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Posts</p>
+                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
+                </div>
+              </motion.div>
+              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
+                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl shadow-sm relative z-10">
+                  <BadgeCheck size={32} />
+                </div>
+                <div className="relative z-10">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending Verifications</p>
+                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">
+                    {profiles.filter(p => p.verification_status === 'pending').length}
+                  </h3>
                 </div>
               </motion.div>
             </div>
@@ -3554,18 +3632,35 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   <tbody className="divide-y divide-slate-50">
                     {profiles.map(p => (
                       <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-8 py-5 text-sm font-black text-slate-900 tracking-tight">{p.name}</td>
-                        <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.email}</td>
-                        <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.batch || '-'}</td>
-                        <td className="px-8 py-5 text-sm">
-                          {p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com' ? (
-                            <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-100">Admin</span>
-                          ) : (
-                            <span className="bg-slate-50 text-slate-400 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-100">Member</span>
-                          )}
+                        <td className="px-8 py-5">
+                          <div className="text-sm font-black text-slate-900 tracking-tight">{p.name}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {p.verification_status === 'verified' && <BadgeCheck size={12} className="text-blue-500" />}
+                            <span className={`text-[9px] font-black uppercase tracking-tighter ${p.verification_status === 'verified' ? 'text-blue-600' : 'text-slate-400'}`}>
+                              {p.verification_status || 'none'}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-8 py-5 text-sm text-right space-x-4">
-                          <button onClick={() => setSelectedProfile(p)} className="text-indigo-600 hover:text-indigo-800 font-black text-[10px] uppercase tracking-widest">View</button>
+                        <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.email}</td>
+                        <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.chemistry_batch || p.batch || '-'}</td>
+                        <td className="px-8 py-5 text-sm">
+                          <button 
+                            onClick={() => toggleUserRole(p.id, p.role || 'user')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${
+                              p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm'
+                                : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100'
+                            }`}
+                          >
+                            <ShieldCheck size={12} />
+                            {p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com' ? 'Admin' : 'Member'}
+                          </button>
+                        </td>
+                        <td className="px-8 py-5 text-sm text-right space-x-3">
+                          {p.verification_status !== 'verified' && (
+                            <button onClick={() => handleVerifyProfile(p.id, 'verified')} className="text-emerald-600 hover:text-emerald-700 font-black text-[10px] uppercase tracking-widest">Approve</button>
+                          )}
+                          <button onClick={() => setSelectedProfile(p)} className="text-indigo-600 hover:text-indigo-800 font-black text-[10px] uppercase tracking-widest">View Profile</button>
                           <button onClick={() => setUserToDelete({id: p.id, name: p.name})} className="text-red-500 hover:text-red-700 font-black text-[10px] uppercase tracking-widest">Remove</button>
                         </td>
                       </tr>
@@ -4051,6 +4146,47 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
       </AnimatePresence>
 
       {/* DELETE USER CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {userToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+            onClick={() => setUserToDelete(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-md p-8 rounded-[2rem] shadow-2xl relative premium-shadow border border-slate-100 text-center"
+            >
+              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={40} />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Remove Member?</h3>
+              <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                Are you sure you want to remove <span className="text-slate-900 font-bold">{userToDelete.name}</span> from the network? This action will permanently delete their data.
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setUserToDelete(null)}
+                  className="flex-1 px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteUser}
+                  className="flex-1 px-6 py-4 bg-red-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-100"
+                >
+                  Confirm Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* CUSTOM RSVP FORM MODAL */}
       <AnimatePresence>

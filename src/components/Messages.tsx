@@ -769,12 +769,16 @@ CREATE TABLE IF NOT EXISTS chats (
   last_message TEXT,
   last_message_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_by UUID REFERENCES profiles(id)
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE
 );
 
 -- 2. Repair existing tables (run this if you already have the tables)
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'individual';
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES profiles(id);
+
+-- Ensure cascading deletes for all chat-related tables
+ALTER TABLE chats DROP CONSTRAINT IF EXISTS chats_created_by_fkey;
+ALTER TABLE chats ADD CONSTRAINT chats_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS last_message TEXT;
 ALTER TABLE chats ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE chat_participants ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'member';
