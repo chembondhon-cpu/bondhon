@@ -1724,7 +1724,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
             <div className={`relative z-10 transition-all duration-300 ${activeTab === item.id ? 'text-white -translate-y-1' : 'text-slate-400'}`}>
               <item.icon size={22} className={activeTab === item.id ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''} />
             </div>
-            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${activeTab === item.id ? 'text-indigo-800 opacity-100 scale-100' : 'text-slate-400 opacity-60 scale-90'}`}>
+            <span className={`text-[10px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${activeTab === item.id ? 'text-indigo-800 opacity-100 scale-100' : 'text-slate-400 opacity-60 scale-90'}`}>
               {item.label}
             </span>
             {activeTab === item.id && (

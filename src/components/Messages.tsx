@@ -905,10 +905,10 @@ END $$;
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="max-w-5xl mx-auto h-[calc(100vh-200px)] min-h-[500px] bg-white/80 backdrop-blur-xl rounded-3xl premium-shadow border border-white/50 overflow-hidden flex"
+      className="max-w-5xl mx-auto h-[calc(100dvh-130px)] md:h-[calc(100vh-200px)] min-h-[500px] bg-white md:bg-white/80 backdrop-blur-xl md:rounded-3xl premium-shadow md:border border-white/50 overflow-hidden flex"
     >
       {/* Sidebar - Chat List */}
-      <div className={`w-full md:w-1/3 border-r border-slate-100 flex flex-col ${activeChat ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-1/3 border-r border-slate-100 flex flex-col ${(activeChat || isCreatingChat) ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white/50">
           <h2 className="text-xl font-bold text-slate-900">Messages</h2>
           <div className="flex items-center space-x-1">
@@ -1327,7 +1327,7 @@ END $$;
                 return (
                   <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                     {showSender && <span className="text-xs text-slate-500 ml-12 mb-1">{msg.sender?.name}</span>}
-                    <div className={`flex items-end space-x-2 max-w-[80%] ${isMe ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
+                    <div className={`flex items-end space-x-2 max-w-[85%] md:max-w-[80%] ${isMe ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
                       {!isMe && activeChat.type === 'group' && (
                         <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
                           {msg.sender?.avatar_url ? <img src={msg.sender.avatar_url} alt="" className="w-full h-full object-cover" /> : <User className="w-full h-full p-1.5 text-slate-500" />}
