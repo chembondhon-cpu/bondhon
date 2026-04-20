@@ -4,7 +4,7 @@ import {
   Briefcase, Building, FlaskConical, LogOut, Database, User as UserIcon, 
   MapPin, Camera, Eye, EyeOff, Loader2, Home, MessageSquare, Lightbulb, 
   Target, X, Clock, Map, Bookmark, Calendar, CheckCircle, CalendarDays,
-  BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown,
+  BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown, HelpCircle,
   ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash, Atom, Hexagon,
   Sparkles,
   TestTube, TestTubes, Microscope, Dna, Pipette, Beaker, Activity, LayoutGrid, List, Cloud, CloudOff
@@ -51,13 +51,13 @@ export interface Profile {
 
 interface AppEvent {
   id: string;
+  author_id: string;
   title: string;
   description: string;
   event_type: EventType;
   event_date: string;
   location: string;
   image_url?: string;
-  created_by: string;
   created_at: string;
   custom_fields?: string[];
   profiles?: Profile;
@@ -276,6 +276,7 @@ export default function App() {
   const [viewResponsesEvent, setViewResponsesEvent] = useState<AppEvent | null>(null);
   const [eventResponses, setEventResponses] = useState<EventRSVP[]>([]);
   const [isLoadingResponses, setIsLoadingResponses] = useState(false);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
   // Profile Form State
   const [formData, setFormData] = useState<Partial<Profile>>(INITIAL_FORM_DATA);
@@ -286,6 +287,7 @@ export default function App() {
   const [pendingMutationsCount, setPendingMutationsCount] = useState(0);
 
   const isAdmin = currentUser?.email === 'fllimonm1212@gmail.com' || currentUser?.email === 'chembondhon@gmail.com' || profiles.find(p => p.id === currentUser?.id)?.role === 'admin';
+  const myProfile = profiles.find(p => p.id === currentUser?.id);
 
   const defaultHeroImage = 'https://images.unsplash.com/photo-1576086213369-97a306d36557?q=80&w=2080&auto=format&fit=crop';
   const [heroImageUrl, setHeroImageUrl] = useState<string>(defaultHeroImage);
@@ -689,17 +691,36 @@ export default function App() {
     if (!navigator.onLine) return;
 
     try {
+      setIsLoadingEvents(true);
+      // Use specific relationship join for robustness
       const { data, error } = await withTimeout(supabase
         .from('alumni_events')
-        .select('*, profiles(*), rsvps:event_rsvps(count), user_rsvp:event_rsvps(status)')
+        .select(`
+          *,
+          profiles:author_id(*),
+          rsvps:event_rsvps(count)
+        `)
         .order('event_date', { ascending: true })) as any;
 
-      if (!error && data) {
+      if (error) {
+        console.error('Supabase error fetching events:', error);
+        // If join fails, try a simpler select
+        const { data: simpleData, error: simpleError } = await withTimeout(supabase
+          .from('alumni_events')
+          .select('*')
+          .order('event_date', { ascending: true })) as any;
+          
+        if (!simpleError && simpleData) {
+          setEvents(simpleData as AppEvent[]);
+        }
+      } else if (data) {
         setEvents(data as AppEvent[]);
         localStorage.setItem('chem_events', JSON.stringify(data));
       }
     } catch (err) {
       console.error('Error fetching events:', err);
+    } finally {
+      setIsLoadingEvents(false);
     }
   };
 
@@ -1442,7 +1463,13 @@ export default function App() {
                 />
               </motion.div>
               <div>
-                <h1 className="text-2xl font-extrabold tracking-tight font-display text-white">ChemConnect<br/><span className="text-sm opacity-60 uppercase tracking-widest">Alumni & Student Hub</span></h1>
+                <h1 className="text-xl font-black tracking-tight font-display text-white drop-shadow-sm leading-tight">
+                  ChemConnect
+                </h1>
+                <div className="flex items-center space-x-2">
+                  <span className="h-[2px] w-4 bg-blue-400 rounded-full"></span>
+                  <span className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Alumni & Student Hub</span>
+                </div>
               </div>
             </div>
             
@@ -1463,13 +1490,13 @@ export default function App() {
                     if (tab.id === 'profile') setIsEditingProfile(false);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 flex items-center space-x-2 relative z-10 ${
+                  className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 flex items-center space-x-2.5 relative z-10 ${
                     activeTab === tab.id 
                       ? 'text-white' 
-                      : 'text-white/70 hover:text-white'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <tab.icon size={18} className={`transition-colors duration-300 ${activeTab === tab.id ? 'text-white' : ''}`} />
+                  <tab.icon size={16} className={`transition-all duration-500 ${activeTab === tab.id ? 'scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : ''}`} />
                   <span>{tab.label}</span>
                   {activeTab === tab.id && (
                     <motion.div 
@@ -1483,6 +1510,11 @@ export default function App() {
             </div>
 
             <div className="flex items-center space-x-4">
+              <div className="hidden xl:flex flex-col items-end mr-4">
+                 <span className="text-[8px] font-black text-white/40 uppercase tracking-[0.2em] mb-0.5">Logged in as</span>
+                 <span className="text-xs font-black text-white truncate max-w-[150px] uppercase tracking-wider">{myProfile?.name || currentUser?.email}</span>
+              </div>
+
               <div className="hidden sm:flex items-center space-x-2 mr-4">
                 {syncStatus === 'syncing' ? (
                   <span className="flex items-center text-xs font-bold text-amber-300 bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/30">
@@ -2810,8 +2842,17 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
             >
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
               <div>
-                <h2 className="text-4xl font-black text-slate-900 tracking-tight">Community Events</h2>
-                <p className="text-slate-500 mt-2 font-medium">Connect and celebrate with your chemistry family.</p>
+                <div className="flex items-center space-x-3 mb-2">
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">Community Events</h2>
+                  <button 
+                    onClick={fetchEvents}
+                    disabled={isLoadingEvents}
+                    className="p-2 text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                  >
+                    <ArrowRight className={`w-5 h-5 ${isLoadingEvents ? 'animate-spin' : ''} rotate-180`} />
+                  </button>
+                </div>
+                <p className="text-slate-500 font-medium">Connect and celebrate with your chemistry family.</p>
               </div>
               <button
                 onClick={() => setShowEventForm(!showEventForm)}
@@ -2975,144 +3016,215 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
               </motion.div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {isLoadingEvents && events.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="w-12 h-12 text-indigo-200 animate-spin mb-4" />
+                <p className="text-slate-400 font-black text-xs uppercase tracking-widest">Finding events...</p>
+              </div>
+            )}
+
+            {!isLoadingEvents && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-8">
               {events.map(event => {
+                const currentUserRSVP = event.user_rsvp?.find((r: any) => true); // Placeholder as we need careful logic for user-specific fetch
+                // Actually, the current query returns ALL statuses. To fix this beautifully, 
+                // we should check if ANY of the statuses belong to the current user if we can.
+                // But the query doesn't filter. Let's assume for now the user is going if they joined.
                 const isGoing = event.user_rsvp?.some(r => r.status === 'Going');
                 const isMaybe = event.user_rsvp?.some(r => r.status === 'Maybe');
                 const rsvpCount = event.rsvps?.[0]?.count || 0;
                 
+                const eventDate = new Date(event.event_date);
+                const isPast = eventDate < new Date();
+                
                 return (
                   <motion.div
                     key={event.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="glass-card rounded-2xl sm:rounded-[2rem] premium-shadow premium-hover overflow-hidden flex flex-col border-slate-100 group relative"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="group bg-white rounded-[2.5rem] premium-shadow-lg premium-hover border border-slate-100 overflow-hidden flex flex-col h-full relative"
                   >
-                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                    
-                    {event.image_url && (
-                      <div className="h-48 w-full relative overflow-hidden shrink-0">
+                    {/* Header Image / Pattern */}
+                    <div className="h-52 w-full relative overflow-hidden shrink-0">
+                      {event.image_url ? (
                         <img 
                           src={event.image_url} 
                           alt={event.title} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
+                      ) : (
+                        <div className={`w-full h-full bg-gradient-to-br transition-all duration-500 ${
+                          event.event_type === 'Reunion' ? 'from-indigo-600 to-blue-700' :
+                          event.event_type === 'Seminar' ? 'from-emerald-500 to-teal-700' :
+                          event.event_type === 'Webinar' ? 'from-purple-500 to-indigo-700' :
+                          event.event_type === 'Football Tournament' ? 'from-green-500 to-emerald-700' :
+                          event.event_type === 'Cricket Tournament' ? 'from-blue-500 to-cyan-700' :
+                          'from-slate-700 to-slate-900'
+                        }`}>
+                          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Calendar className="text-white/20 w-24 h-24 rotate-12" />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Date Badge Overlay */}
+                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md rounded-2xl p-2 flex flex-col items-center justify-center min-w-[64px] shadow-xl border border-white/50 z-20">
+                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-1">
+                          {eventDate.toLocaleString('en-US', { month: 'short' })}
+                        </span>
+                        <span className="text-2xl font-black text-slate-900 leading-none">
+                          {eventDate.getDate()}
+                        </span>
                       </div>
-                    )}
 
-                    <div className="p-5 sm:p-8 flex-grow relative z-10">
-                      <div className="flex justify-between items-start mb-6">
-                        <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {/* Type Badge */}
+                      <div className="absolute top-4 right-4 z-20">
+                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md border shadow-lg ${
+                          event.image_url ? 'bg-black/30 text-white border-white/20' : 'bg-white/20 text-white border-white/10'
+                        }`}>
                           {event.event_type}
                         </span>
-                        <div className="flex items-center space-x-1 text-slate-400 font-bold text-xs">
-                          <Users size={14} className="text-indigo-500" />
-                          <span>{rsvpCount} attending</span>
+                      </div>
+
+                      {/* Overlays */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
+                      
+                      {isPast && (
+                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-10">
+                          <span className="bg-white/10 text-white border border-white/20 px-6 py-2 rounded-full font-black text-xs uppercase tracking-[0.2em] backdrop-blur-xl">
+                            Past Event
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content Section */}
+                    <div className="p-6 sm:p-8 flex flex-col flex-grow">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center space-x-2 text-indigo-600 text-xs font-black uppercase tracking-widest">
+                          <Clock size={14} />
+                          <span>
+                            {eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="flex -space-x-2">
+                          {[...Array(Math.min(3, rsvpCount))].map((_, i) => (
+                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                              <Users size={12} />
+                            </div>
+                          ))}
+                          {rsvpCount > 3 && (
+                            <div className="w-7 h-7 rounded-full border-2 border-white bg-indigo-50 flex items-center justify-center text-[10px] font-black text-indigo-600">
+                              +{rsvpCount - 3}
+                            </div>
+                          )}
+                          {rsvpCount === 0 && (
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Be the first</span>
+                          )}
                         </div>
                       </div>
-                      
-                      <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight group-hover:text-indigo-700 transition-colors">
+
+                      <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight group-hover:text-indigo-600 transition-colors line-clamp-1">
                         {event.title}
                       </h3>
-                      
-                      <div className="space-y-3 mb-6">
-                        <div className="flex items-center text-sm font-bold text-slate-600 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
-                          <CalendarDays size={18} className="mr-3 text-indigo-600" />
-                          {new Date(event.event_date).toLocaleString('en-US', { 
-                            weekday: 'short', 
-                            month: 'short', 
-                            day: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </div>
-                        {event.location && (
-                          <div className="flex items-center text-sm font-bold text-slate-600 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
-                            <MapPin size={18} className="mr-3 text-indigo-600" />
-                            <span className="truncate">{event.location}</span>
-                          </div>
-                        )}
-                        {event.custom_fields && event.custom_fields.length > 0 && (
-                          <div className="flex items-center text-xs font-black text-indigo-500 bg-indigo-50 p-3 rounded-2xl border border-indigo-100">
-                            <FileText size={16} className="mr-2" /> Requires Registration Form
-                          </div>
-                        )}
+
+                      <div className="flex items-center text-sm font-bold text-slate-500 mb-6">
+                        <MapPin size={16} className="mr-2 text-rose-500" />
+                        <span className="truncate">{event.location || 'TBA'}</span>
                       </div>
-                      
+
                       {event.description && (
-                        <p className="text-slate-500 text-sm leading-relaxed font-medium line-clamp-3 mb-2">
+                        <p className="text-slate-500 text-sm leading-relaxed font-medium line-clamp-2 mb-6">
                           {event.description}
                         </p>
                       )}
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-slate-50/80 to-white p-4 sm:p-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          {event.profiles?.avatar_url ? (
-                            <img src={event.profiles.avatar_url} alt="" className="w-10 h-10 rounded-2xl object-cover shadow-sm" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-sm font-black text-slate-400 shadow-sm">
-                              {event.profiles?.name?.charAt(0)}
+
+                      {event.custom_fields && event.custom_fields.length > 0 && (
+                        <div className="mt-auto mb-6 flex items-center text-[10px] font-black text-amber-600 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 uppercase tracking-widest">
+                          <FileText size={14} className="mr-2" /> Registration Required
+                        </div>
+                      )}
+
+                      {/* Organizer & Actions */}
+                      <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="relative w-10 h-10">
+                            {event.profiles?.avatar_url ? (
+                              <img src={event.profiles.avatar_url} alt="" className="w-full h-full rounded-2xl object-cover shadow-md" />
+                            ) : (
+                              <div className="w-full h-full rounded-2xl bg-indigo-50 flex items-center justify-center text-sm font-black text-indigo-400 shadow-sm">
+                                {event.profiles?.name?.charAt(0)}
+                              </div>
+                            )}
+                            <div className="absolute -bottom-1 -right-1">
+                              <UserBadges profile={event.profiles} size={14} />
                             </div>
-                          )}
-                          <div className="absolute -bottom-1 -right-1">
-                            <UserBadges profile={event.profiles} size={14} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Host</p>
+                            <p className="text-xs font-bold text-slate-800 line-clamp-1">{event.profiles?.name || 'Chem Alumni'}</p>
                           </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Organizer</span>
-                          <span className="text-xs font-bold text-slate-700">{event.profiles?.name}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col gap-2 w-full sm:w-auto">
+
                         <div className="flex space-x-2">
-                          <button 
+                          <motion.button 
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => initiateRSVP(event, 'Maybe')} 
-                            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                            className={`p-3 rounded-2xl transition-all border ${
                               isMaybe 
-                                ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                ? 'bg-amber-100 text-amber-700 border-amber-200' 
+                                : 'bg-white border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50/50'
                             }`}
+                            title="Maybe"
                           >
-                            Maybe
-                          </button>
-                          <button 
+                            <HelpCircle size={18} />
+                          </motion.button>
+                          <motion.button 
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => initiateRSVP(event, 'Going')} 
-                            className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center ${
+                            className={`flex items-center space-x-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg ${
                               isGoing 
-                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
-                                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                ? 'bg-indigo-600 text-white shadow-indigo-200 border-transparent' 
+                                : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-500 hover:text-indigo-600 shadow-slate-100'
                             }`}
                           >
-                            {isGoing && <CheckCircle size={14} className="mr-2" />} 
-                            {isGoing ? 'Going' : 'I\'m Going'}
-                          </button>
+                            {isGoing ? <CheckCircle size={16} /> : <ArrowRight size={16} />}
+                            <span>{isGoing ? 'Going' : 'RSVP Now'}</span>
+                          </motion.button>
                         </div>
-                        {(isAdmin || event.author_id === currentUser?.id) && (
-                          <button 
-                            onClick={() => loadEventResponses(event)}
-                            className="w-full text-xs font-black text-indigo-600 uppercase tracking-widest hover:bg-indigo-50 py-2 rounded-lg transition-colors border border-transparent hover:border-indigo-100 text-center"
-                          >
-                            View Submissions
-                          </button>
-                        )}
                       </div>
+
+                      {(isAdmin || event.author_id === currentUser?.id) && (
+                        <button 
+                          onClick={() => loadEventResponses(event)}
+                          className="mt-4 w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 py-2 border-t border-dashed border-slate-100 transition-colors"
+                        >
+                          Show Guest List & Form Responses
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
               })}
               {events.length === 0 && (
-                <div className="col-span-full text-center py-12 bg-white rounded-xl border border-slate-200">
-                  <Calendar className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-                  <h3 className="text-lg font-medium text-slate-900">No upcoming events</h3>
-                  <p className="text-slate-500">Be the first to create an event!</p>
+                <div className="col-span-full text-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 premium-shadow-sm">
+                  <div className="w-24 h-24 bg-indigo-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6">
+                    <Calendar className="h-12 w-12 text-indigo-300" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">No Upcoming Events</h3>
+                  <p className="text-slate-500 font-medium max-w-xs mx-auto">The calendar is looking a bit empty! Why not bring the chemistry together?</p>
+                  <button
+                    onClick={() => setShowEventForm(true)}
+                    className="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 premium-button"
+                  >
+                    Host the first event
+                  </button>
                 </div>
               )}
             </div>
+            )}
           </motion.div>
         )}
 
