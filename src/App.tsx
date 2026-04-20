@@ -1339,7 +1339,7 @@ export default function App() {
             transition={{ delay: 0.3 }}
             className="mt-2 text-center text-sm text-slate-500 font-medium"
           >
-            Chemistry Alumni & Student Network
+            Chemistry Student and Alumni Network
           </motion.p>
         </div>
 
@@ -1468,7 +1468,7 @@ export default function App() {
                 </h1>
                 <div className="flex items-center space-x-2">
                   <span className="h-[2px] w-4 bg-blue-400 rounded-full"></span>
-                  <span className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Alumni & Student Hub</span>
+                  <span className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Student & Alumni Hub</span>
                 </div>
               </div>
             </div>
@@ -1764,11 +1764,11 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       className="inline-flex items-center space-x-2 bg-indigo-500/30 backdrop-blur-md px-4 py-2 rounded-full border border-indigo-400/30 mb-6"
                     >
                       <Sparkles size={16} className="text-indigo-200" />
-                      <span className="text-xs font-black uppercase tracking-[0.2em] text-indigo-100 italic">Official Alumni Network</span>
+                      <span className="text-xs font-black uppercase tracking-[0.2em] text-indigo-100 italic">Official Student & Alumni Network</span>
                     </motion.div>
                     <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white leading-[0.9] tracking-tighter mb-6 underline-offset-8 decoration-indigo-500/50">
                       Welcome Home, <br />
-                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-100">Alumni & Students</span>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-100">Students & Alumni</span>
                     </h1>
                     <p className="text-lg text-indigo-100/70 font-medium max-w-xl leading-relaxed mb-10">
                       Stay connected with your classmates, share opportunities, and keep the Spirit of Chemistry alive across generations.
@@ -1803,7 +1803,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
               {/* Quick Navigation Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { label: 'Total Alumni', count: profiles.length, icon: Users, color: 'indigo', action: () => setActiveTab('directory') },
+                  { label: 'Total Students & Alumni', count: profiles.length, icon: Users, color: 'indigo', action: () => setActiveTab('directory') },
                   { label: 'Upcoming Events', count: events.length, icon: Calendar, color: 'blue', action: () => setActiveTab('events') },
                   { label: 'Saved Contacts', count: bookmarks.size, icon: Bookmark, color: 'slate', action: () => setActiveTab('saved') }
                 ].map((stat, idx) => (
@@ -1840,7 +1840,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   <div className="flex-1 text-center md:text-left">
                     <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2 uppercase italic">Verified Network</h3>
                     <p className="text-slate-600 font-medium leading-relaxed max-w-2xl">
-                      Welcome to the official alumni platform for RU Chemistry students. Our goal is to create a secure space for all past and present students to connect and support each other.
+                      Welcome to the official student and alumni platform for RU Chemistry students. Our goal is to create a secure space for all past and present students to connect and support each other.
                     </p>
                   </div>
                   <button 
@@ -1873,7 +1873,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       </div>
                       <div className="flex-1 space-y-4">
                         <textarea
-                          placeholder="Share something with the alumni network..."
+                          placeholder="Share something with the student and alumni network..."
                           className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-medium min-h-[100px] resize-none"
                           value={newPostContent}
                           onChange={(e) => setNewPostContent(e.target.value)}
@@ -1966,7 +1966,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <h4 className="font-black text-slate-900 tracking-tight">{post.profiles?.name || 'Anonymous Alumni'}</h4>
+                                <h4 className="font-black text-slate-900 tracking-tight">{post.profiles?.name || 'Anonymous Student/Alumni'}</h4>
                                 <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-widest">
                                   Batch {post.profiles?.chemistry_batch || 'N/A'}
                                 </span>
@@ -2874,7 +2874,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                         <input
                           required
                           type="text"
-                          placeholder="e.g., Annual Alumni Gala 2024"
+                          placeholder="e.g., Annual Student & Alumni Gala 2024"
                           className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                           value={eventForm.title}
                           onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
@@ -3164,7 +3164,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                           </div>
                           <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Host</p>
-                            <p className="text-xs font-bold text-slate-800 line-clamp-1">{event.profiles?.name || 'Chem Alumni'}</p>
+                            <p className="text-xs font-bold text-slate-800 line-clamp-1">{event.profiles?.name || 'Chem Student & Alumni'}</p>
                           </div>
                         </div>
 
