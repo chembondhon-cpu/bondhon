@@ -356,17 +356,35 @@ export default function App() {
   }, []);
 
   const syncData = async () => {
-    if (!navigator.onLine) return;
+    if (!navigator.onLine) {
+      alert("Cannot sync while offline. Please check your internet connection.");
+      return;
+    }
     setSyncStatus('syncing');
+    let hasErrors = false;
+    let syncedCount = 0;
+    
     try {
       const mutations = await getOfflineMutations();
       for (const mutation of mutations) {
         if (mutation.type === 'profile_update') {
+          // Check for basic data integrity before upsert
+          if (!mutation.payload || !mutation.payload.id) {
+            hasErrors = true;
+            console.warn("Invalid offline mutation payload:", mutation);
+            continue;
+          }
+          
           const { error } = await supabase
             .from('profiles')
-            .upsert(mutation.payload);
+            .upsert([mutation.payload]);
+            
           if (!error && mutation.id) {
             await clearOfflineMutation(mutation.id);
+            syncedCount++;
+          } else if (error) {
+            console.error('Conflict or error syncing profile:', error);
+            hasErrors = true;
           }
         }
       }
@@ -374,9 +392,17 @@ export default function App() {
       const remaining = await getOfflineMutations();
       setPendingMutationsCount(remaining.length);
       setSyncStatus('online');
+      
+      if (hasErrors) {
+        alert("Sync partially complete: some conflicts or errors occurred while saving offline changes.");
+      } else if (syncedCount > 0) {
+        // Optional silently succeed or show a small toast if we implement it.
+        console.log(`Successfully synced ${syncedCount} changes.`);
+      }
     } catch (error) {
       console.error('Sync failed:', error);
-      setSyncStatus('offline');
+      setSyncStatus('online'); // fallback
+      alert("An unexpected error occurred during synchronization. Please try again.");
     }
   };
 
@@ -468,7 +494,19 @@ export default function App() {
         .single()) as any;
 
       if (error) {
-        console.error('Error fetching my profile:', error);
+        if (error.code === 'PGRST116') {
+          // New user - no profile in DB yet
+          setFormData({
+            ...INITIAL_FORM_DATA,
+            name: currentUser.user_metadata?.full_name || '',
+            email: currentUser.email || ''
+          });
+          // Redirect new users to profile edit immediately
+          setActiveTab('profile');
+          setIsEditingProfile(true);
+        } else {
+          console.error('Error fetching my profile:', error);
+        }
       } else if (data) {
         localStorage.setItem(`chem_my_profile_${currentUser.id}`, JSON.stringify(data));
         setFormData({
@@ -493,16 +531,6 @@ export default function App() {
         is_public: data.is_public ?? true,
         verification_status: data.verification_status || 'none'
       });
-    } else {
-      // New user - no profile in DB yet
-      setFormData({
-        ...INITIAL_FORM_DATA,
-        name: currentUser.user_metadata?.full_name || '',
-        email: currentUser.email || ''
-      });
-      // Redirect new users to profile edit immediately
-      setActiveTab('profile');
-      setIsEditingProfile(true);
     }
   } catch (err) {
     console.error('Network error fetching my profile:', err);
@@ -935,7 +963,6 @@ export default function App() {
       setProfiles(localProfiles);
       
       setIsEditingProfile(false);
-      setActiveTab('directory');
       return;
     }
 
@@ -947,9 +974,28 @@ export default function App() {
       console.error('Error saving profile:', error);
       alert(`Failed to save profile: ${error.message || 'Unknown error'}. Please ensure all database columns are created correctly in Supabase.`);
     } else {
-      fetchProfiles();
+      // Optimistically update local cache to give immediate feedback
+      setProfiles(prev => {
+        const existingIndex = prev.findIndex(p => p.id === currentUser.id);
+        const newProfiles = [...prev];
+        if (existingIndex >= 0) {
+          newProfiles[existingIndex] = { ...newProfiles[existingIndex], ...profileData } as Profile;
+        } else {
+          newProfiles.push(profileData as Profile);
+        }
+        
+        // Also fire off background local storage save
+        saveProfilesLocally(newProfiles).catch(e => console.error(e));
+        return newProfiles;
+      });
+      
+      // Update our form data wrapper
+      setFormData(prev => ({ ...prev, ...profileData }));
+      
       setIsEditingProfile(false);
-      setActiveTab('directory');
+      
+      // Re-fetch in background to ensure sync with server
+      fetchProfiles();
     }
   };
 
@@ -1703,6 +1749,11 @@ create policy "Authenticated Update" on storage.objects for update with check (a
 -- First drop existing policies to avoid "already exists" errors
 drop policy if exists "profiles_all" on profiles;
 drop policy if exists "profiles_self" on profiles;
+drop policy if exists "profiles_admin" on profiles;
+drop policy if exists "profiles_select" on profiles;
+drop policy if exists "profiles_insert" on profiles;
+drop policy if exists "profiles_update" on profiles;
+drop policy if exists "profiles_delete" on profiles;
 drop policy if exists "posts_all" on posts;
 drop policy if exists "posts_write" on posts;
 drop policy if exists "posts_owner" on posts;
@@ -1713,12 +1764,22 @@ drop policy if exists "rsvps_owner" on event_rsvps;
 drop policy if exists "bookmarks_owner" on bookmarks;
 
 alter table profiles enable row level security;
-create policy "profiles_all" on profiles for select using (true);
-create policy "profiles_self" on profiles for all using (auth.uid() = id);
-create policy "profiles_admin" on profiles for all using (
-  auth.jwt() ->> 'email' = 'chembondhon@gmail.com' 
+create policy "profiles_select" on profiles for select using (true);
+
+create policy "profiles_insert" on profiles for insert with check (auth.uid() = id);
+
+create policy "profiles_update" on profiles for update using (
+  auth.uid() = id 
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com' 
   OR auth.jwt() ->> 'email' = 'fllimonm1212@gmail.com'
-  OR (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+  OR (select role from profiles where id = auth.uid()) = 'admin'
+);
+
+create policy "profiles_delete" on profiles for delete using (
+  auth.uid() = id 
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com' 
+  OR auth.jwt() ->> 'email' = 'fllimonm1212@gmail.com'
+  OR (select role from profiles where id = auth.uid()) = 'admin'
 );
 
 alter table posts enable row level security;
@@ -2665,7 +2726,34 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   <div className="flex items-center space-x-3 mt-4 sm:mt-0 relative z-10">
                     <button
                       type="button"
-                      onClick={() => setIsEditingProfile(false)}
+                      onClick={() => {
+                        setIsEditingProfile(false);
+                        if (myProfile) {
+                          setFormData({
+                            name: myProfile.name,
+                            avatar_url: myProfile.avatar_url,
+                            batch: myProfile.batch,
+                            chemistry_batch: myProfile.chemistry_batch,
+                            student_id: myProfile.student_id,
+                            department: myProfile.department || '',
+                            university: myProfile.university || '',
+                            current_status: (myProfile.current_status as any) || '',
+                            job_title: myProfile.job_title,
+                            institute_name: myProfile.institute_name,
+                            location: myProfile.location,
+                            permanent_address: myProfile.permanent_address,
+                            blood_group: myProfile.blood_group,
+                            bio: myProfile.bio,
+                            phone: myProfile.phone,
+                            is_phone_private: myProfile.is_phone_private ?? false,
+                            email: myProfile.email,
+                            social_links: myProfile.social_links || {},
+                            is_public: myProfile.is_public ?? true,
+                            role: myProfile.role || 'member',
+                            verification_status: myProfile.verification_status || 'none'
+                          });
+                        }
+                      }}
                       className="px-5 py-2.5 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-all backdrop-blur-md border border-white/20"
                     >
                       Cancel
