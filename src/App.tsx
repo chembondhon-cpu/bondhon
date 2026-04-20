@@ -1601,15 +1601,16 @@ export default function App() {
       {dbError && (
         <div className="bg-amber-50 border-b border-amber-200 p-4">
           <div className="max-w-7xl mx-auto flex items-start space-x-3">
-      <Database className="text-amber-600 shrink-0 mt-0.5" size={20} />
-      <div className="flex-1">
-        <h3 className="text-sm font-bold text-amber-800">Supabase Connection Issue</h3>
-        <p className="text-sm text-amber-700 mt-1">{dbError}</p>
-        <p className="text-xs text-amber-600 mt-2 font-medium">
-          Tip: Ensure your Supabase URL and Anon Key are correctly configured in the AI Studio <b>Secrets</b> panel or <b>.env</b> file.
-        </p>
-        <div className="mt-3 bg-white p-3 rounded border border-amber-200 overflow-x-auto text-xs font-mono text-slate-800">
-                <pre>{`-- SQL MASTER SETUP (Run this in Supabase SQL Editor)
+            <Database className="text-amber-600 shrink-0 mt-0.5" size={20} />
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-amber-800">Supabase Connection Issue</h3>
+              <p className="text-sm text-amber-700 mt-1">{dbError}</p>
+              <details className="mt-3">
+                <summary className="text-xs text-indigo-600 font-bold cursor-pointer hover:underline">
+                  Click to view SQL Setup Script (Run this in your Supabase SQL Editor if tables are missing)
+                </summary>
+                <div className="mt-3 bg-white p-3 rounded border border-amber-200 overflow-x-auto text-[10px] font-mono text-slate-800 max-h-[300px] custom-scrollbar">
+                  <pre>{`-- SQL MASTER SETUP (Run this in Supabase SQL Editor)
 
 -- 1. Profiles table
 create table if not exists profiles (
@@ -1750,7 +1751,8 @@ create policy "rsvps_owner" on event_rsvps for all using (auth.uid() = user_id);
 alter table bookmarks enable row level security;
 create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id);
 `}</pre>
-              </div>
+                </div>
+              </details>
             </div>
           </div>
         </div>
