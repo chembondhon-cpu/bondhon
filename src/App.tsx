@@ -19,7 +19,6 @@ import { saveProfilesLocally, getLocalProfiles, saveOfflineMutation, getOfflineM
 import { Messages } from './components/Messages';
 
 type CurrentStatus = 'Student' | 'Govt Job' | 'Private Job' | 'Business' | 'Abroad' | '';
-type EventType = 'Reunion' | 'Seminar' | 'Webinar' | 'Football Tournament' | 'Cricket Tournament' | 'Other';
 
 export interface Profile {
   id: string;
@@ -27,6 +26,7 @@ export interface Profile {
   avatar_url?: string;
   batch: string;
   chemistry_batch?: string;
+  hall_name?: string;
   student_id?: string;
   department: string;
   university: string;
@@ -49,28 +49,16 @@ export interface Profile {
   verification_status?: 'none' | 'pending' | 'verified' | 'rejected';
 }
 
-interface AppEvent {
+interface Teacher {
   id: string;
-  author_id: string;
-  title: string;
-  description: string;
-  event_type: EventType;
-  event_date: string;
-  location: string;
-  image_url?: string;
-  created_at: string;
-  custom_fields?: string[];
-  profiles?: Profile;
-  rsvps?: { count: number }[];
-  user_rsvp?: { status: string }[];
-}
-
-interface EventRSVP {
-  event_id: string;
-  user_id: string;
-  status: string;
-  answers?: Record<string, string>;
-  profiles?: Profile;
+  name: string;
+  designation: string;
+  department: string;
+  university: string;
+  phone?: string;
+  email?: string;
+  avatar_url?: string;
+  created_at?: string;
 }
 
 interface Bookmark {
@@ -82,6 +70,7 @@ const STATUS_OPTIONS: CurrentStatus[] = ['Student', 'Govt Job', 'Private Job', '
 const INITIAL_FORM_DATA: Partial<Profile> = {
   department: '',
   university: '',
+  hall_name: '',
   current_status: '',
   blood_group: '',
   is_public: true,
@@ -226,10 +215,9 @@ export default function App() {
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
-  const [events, setEvents] = useState<AppEvent[]>([]);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
 
-  const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'events' | 'saved' | 'admin' | 'messages'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'teachers' | 'saved' | 'admin' | 'messages'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterBatch, setFilterBatch] = useState<string>('All');
@@ -252,31 +240,19 @@ export default function App() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Event Form State
-  const [eventForm, setEventForm] = useState({
-    title: '',
-    description: '',
-    event_type: 'Reunion' as EventType,
-    event_date: '',
-    location: ''
+  // Teachers State
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(false);
+  const [showTeacherForm, setShowTeacherForm] = useState(false);
+  const [isCreatingTeacher, setIsCreatingTeacher] = useState(false);
+  const [teacherForm, setTeacherForm] = useState<Partial<Teacher>>({
+    name: '',
+    designation: '',
+    department: 'Chemistry',
+    university: 'University of Rajshahi',
+    phone: '',
+    email: '',
   });
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
-  const [showEventForm, setShowEventForm] = useState(false);
-  const [eventFormQuestions, setEventFormQuestions] = useState<string[]>([]);
-  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
-  const [isUploadingEventImage, setIsUploadingEventImage] = useState(false);
-  const eventImageInputRef = useRef<HTMLInputElement>(null);
-  
-  // Custom RSVP Form State
-  const [rsvpEvent, setRsvpEvent] = useState<AppEvent | null>(null);
-  const [rsvpAnswers, setRsvpAnswers] = useState<Record<string, string>>({});
-  const [isSubmittingRSVP, setIsSubmittingRSVP] = useState(false);
-  
-  // View Responses State
-  const [viewResponsesEvent, setViewResponsesEvent] = useState<AppEvent | null>(null);
-  const [eventResponses, setEventResponses] = useState<EventRSVP[]>([]);
-  const [isLoadingResponses, setIsLoadingResponses] = useState(false);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
 
   // Profile Form State
   const [formData, setFormData] = useState<Partial<Profile>>(INITIAL_FORM_DATA);
@@ -442,8 +418,8 @@ export default function App() {
       fetchProfiles();
       fetchMyProfile();
       fetchPosts();
-      fetchEvents();
       fetchBookmarks();
+      fetchTeachers();
     }
   }, [currentUser]);
 
@@ -462,6 +438,7 @@ export default function App() {
           avatar_url: data.avatar_url,
           batch: data.batch,
           chemistry_batch: data.chemistry_batch,
+          hall_name: data.hall_name || '',
           student_id: data.student_id,
           department: data.department || '',
           university: data.university || '',
@@ -514,6 +491,7 @@ export default function App() {
           avatar_url: data.avatar_url,
         batch: data.batch,
         chemistry_batch: data.chemistry_batch,
+        hall_name: data.hall_name || '',
         student_id: data.student_id,
         department: data.department || '',
         university: data.university || '',
@@ -706,49 +684,33 @@ export default function App() {
     }
   };
 
-  const fetchEvents = async () => {
-    const cachedEvents = localStorage.getItem('chem_events');
-    if (cachedEvents) {
+  const fetchTeachers = async () => {
+    const cachedTeachers = localStorage.getItem('chem_teachers');
+    if (cachedTeachers) {
       try {
-        setEvents(JSON.parse(cachedEvents));
+        setTeachers(JSON.parse(cachedTeachers));
       } catch (e) {
-        console.error('Failed to parse cached events', e);
+        console.error('Failed to parse cached teachers', e);
       }
     }
 
     if (!navigator.onLine) return;
 
     try {
-      setIsLoadingEvents(true);
-      // Use specific relationship join for robustness
+      setIsLoadingTeachers(true);
       const { data, error } = await withTimeout(supabase
-        .from('alumni_events')
-        .select(`
-          *,
-          profiles:author_id(*),
-          rsvps:event_rsvps(count)
-        `)
-        .order('event_date', { ascending: true })) as any;
+        .from('teachers')
+        .select('*')
+        .order('name', { ascending: true })) as any;
 
-      if (error) {
-        console.error('Supabase error fetching events:', error);
-        // If join fails, try a simpler select
-        const { data: simpleData, error: simpleError } = await withTimeout(supabase
-          .from('alumni_events')
-          .select('*')
-          .order('event_date', { ascending: true })) as any;
-          
-        if (!simpleError && simpleData) {
-          setEvents(simpleData as AppEvent[]);
-        }
-      } else if (data) {
-        setEvents(data as AppEvent[]);
-        localStorage.setItem('chem_events', JSON.stringify(data));
+      if (!error && data) {
+        setTeachers(data as Teacher[]);
+        localStorage.setItem('chem_teachers', JSON.stringify(data));
       }
     } catch (err) {
-      console.error('Error fetching events:', err);
+      console.error('Error fetching teachers:', err);
     } finally {
-      setIsLoadingEvents(false);
+      setIsLoadingTeachers(false);
     }
   };
 
@@ -929,6 +891,7 @@ export default function App() {
       avatar_url: formData.avatar_url,
       batch: formData.batch || '',
       chemistry_batch: formData.chemistry_batch,
+      hall_name: formData.hall_name || '',
       student_id: formData.student_id,
       department: formData.department || '',
       university: formData.university || '',
@@ -1034,103 +997,97 @@ export default function App() {
     }
   };
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
+  const handleTeacherAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !isAdmin) return;
+
+    try {
+      setIsCreatingTeacher(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `teacher_${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      
+      setTeacherForm(prev => ({ ...prev, avatar_url: data.publicUrl }));
+    } catch (error: any) {
+      console.error('Error uploading teacher photo:', error);
+      alert('Error uploading photo: ' + error.message);
+    } finally {
+      setIsCreatingTeacher(false);
+    }
+  };
+
+  const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !eventForm.title || !eventForm.event_date) return;
-    setIsCreatingEvent(true);
+    if (!currentUser || !isAdmin) return;
+    setIsCreatingTeacher(true);
     
     try {
-      let imageUrl = '';
-      if (eventImageFile) {
-        const fileExt = eventImageFile.name.split('.').pop();
-        const fileName = `event_${Date.now()}.${fileExt}`;
-        const filePath = `events/${fileName}`;
+      const teacherData = {
+        name: teacherForm.name,
+        designation: teacherForm.designation,
+        department: teacherForm.department,
+        university: teacherForm.university,
+        phone: teacherForm.phone,
+        email: teacherForm.email,
+        avatar_url: teacherForm.avatar_url
+      };
 
-        const { error: uploadError } = await supabase.storage
-          .from('post-images')
-          .upload(filePath, eventImageFile);
+      if (teacherForm.id) {
+        // Optimistic update for edit
+        const updatedTeachers = teachers.map(t => t.id === teacherForm.id ? { ...t, ...teacherData } as Teacher : t);
+        setTeachers(updatedTeachers);
+        localStorage.setItem('chem_teachers', JSON.stringify(updatedTeachers));
 
-        if (uploadError) {
-          throw uploadError;
+        const { error } = await supabase.from('teachers').update(teacherData).eq('id', teacherForm.id);
+        if (error) {
+          fetchTeachers(); // rollback
+          throw error;
         }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('post-images')
-          .getPublicUrl(filePath);
-        imageUrl = publicUrl;
+      } else {
+        const { error } = await supabase.from('teachers').insert([teacherData]);
+        if (error) throw error;
+        fetchTeachers(); // fetch newly created
       }
 
-      const { error } = await supabase.from('alumni_events').insert([{
-        title: eventForm.title,
-        description: eventForm.description,
-        event_type: eventForm.event_type,
-        event_date: eventForm.event_date,
-        location: eventForm.location,
-        author_id: currentUser.id,
-        custom_fields: eventFormQuestions,
-        image_url: imageUrl
-      }]);
-
-      if (error) throw error;
-
-      setEventForm({ title: '', description: '', event_type: 'Reunion', event_date: '', location: '' });
-      setEventFormQuestions([]);
-      setEventImageFile(null);
-      setShowEventForm(false);
-      fetchEvents();
+      setTeacherForm({ id: undefined, name: '', designation: '', department: 'Chemistry', university: 'University of Rajshahi', phone: '', email: '', avatar_url: undefined });
+      setShowTeacherForm(false);
     } catch (error: any) {
-      console.error("Error creating event:", error);
-      alert('Failed to create event: ' + error.message);
+      console.error("Error saving teacher:", error);
+      alert('Failed to save teacher: ' + error.message);
     } finally {
-      setIsCreatingEvent(false);
+      setIsCreatingTeacher(false);
     }
   };
 
-  const handleRSVP = async (eventId: string, status: 'Going' | 'Maybe', answers: Record<string, string> = {}) => {
-    if (!currentUser) return;
-    setIsSubmittingRSVP(true);
-    const { error } = await supabase.from('event_rsvps').upsert([{
-      event_id: eventId,
-      user_id: currentUser.id,
-      status,
-      answers
-    }], { onConflict: 'event_id,user_id' });
-    setIsSubmittingRSVP(false);
-    if (!error) {
-      setRsvpEvent(null);
-      setRsvpAnswers({});
-      fetchEvents();
-    } else {
-      console.error("Error with RSVP:", error);
-      alert("Failed to RSVP: " + error.message);
-    }
-  };
+  const handleDeleteTeacher = async (id: string) => {
+    if (!isAdmin) return;
+    const confirm = window.confirm('Are you sure you want to delete this teacher?');
+    if (!confirm) return;
 
-  const initiateRSVP = (event: AppEvent, status: 'Going' | 'Maybe') => {
-    if (status === 'Going' && event.custom_fields && event.custom_fields.length > 0) {
-      setRsvpEvent(event);
-      setRsvpAnswers({});
-    } else {
-      handleRSVP(event.id, status);
-    }
-  };
+    try {
+      // Optimistic update
+      const updatedTeachers = teachers.filter(t => t.id !== id);
+      setTeachers(updatedTeachers);
+      localStorage.setItem('chem_teachers', JSON.stringify(updatedTeachers));
 
-  const loadEventResponses = async (event: AppEvent) => {
-    setViewResponsesEvent(event);
-    setIsLoadingResponses(true);
-    const { data, error } = await supabase
-      .from('event_rsvps')
-      .select('*, profiles(*)')
-      .eq('event_id', event.id)
-      .eq('status', 'Going');
-    
-    if (!error && data) {
-      setEventResponses(data);
-    } else {
-      console.error("Error loading responses:", error);
-      alert("Failed to load registration details.");
+      const { error } = await supabase.from('teachers').delete().eq('id', id);
+      if (error) {
+        // Rollback on error
+        fetchTeachers();
+        throw error;
+      }
+    } catch (error: any) {
+      console.error("Error deleting teacher:", error);
+      alert("Failed to delete teacher: " + error.message);
     }
-    setIsLoadingResponses(false);
   };
 
   const toggleBookmark = async (profileId: string) => {
@@ -1565,7 +1522,7 @@ export default function App() {
                 { id: 'feed', icon: LayoutGrid, label: 'Feed' },
                 { id: 'directory', icon: Users, label: 'Directory' },
                 { id: 'messages', icon: MessageSquare, label: 'Messages' },
-                { id: 'events', icon: Calendar, label: 'Events' },
+                { id: 'teachers', icon: Users, label: 'Teachers' },
                 { id: 'saved', icon: Bookmark, label: 'Saved' },
                 { id: 'profile', icon: UserIcon, label: 'Profile' },
                 ...(isAdmin ? [{ id: 'admin', icon: Database, label: 'Admin' }] : [])
@@ -1666,6 +1623,7 @@ create table if not exists profiles (
   batch text,
   chemistry_batch text,
   student_id text,
+  hall_name text,
   department text default 'Chemistry',
   university text default 'University of Rajshahi',
   current_status text,
@@ -1696,28 +1654,17 @@ create table if not exists posts (
   created_at timestamp with time zone default now()
 );
 
--- 3. Events
-create table if not exists alumni_events (
+-- 3. Teachers
+create table if not exists teachers (
   id uuid default gen_random_uuid() primary key,
-  author_id uuid references profiles(id) on delete cascade not null,
-  title text not null,
-  description text not null,
-  event_type text not null,
-  event_date timestamp with time zone not null,
-  location text not null,
-  image_url text,
-  custom_fields jsonb default '[]'::jsonb,
+  name text not null,
+  designation text not null,
+  department text not null,
+  university text not null,
+  phone text,
+  email text,
+  avatar_url text,
   created_at timestamp with time zone default now()
-);
-
--- 3.1 Event RSVPs
-create table if not exists event_rsvps (
-  event_id uuid references alumni_events(id) on delete cascade not null,
-  user_id uuid references profiles(id) on delete cascade not null,
-  status text not null,
-  answers jsonb default '{}'::jsonb,
-  created_at timestamp with time zone default now(),
-  primary key (event_id, user_id)
 );
 
 -- 4. Site Config
@@ -1757,10 +1704,8 @@ drop policy if exists "profiles_delete" on profiles;
 drop policy if exists "posts_all" on posts;
 drop policy if exists "posts_write" on posts;
 drop policy if exists "posts_owner" on posts;
-drop policy if exists "events_all" on alumni_events;
-drop policy if exists "events_admin" on alumni_events;
-drop policy if exists "rsvps_all" on event_rsvps;
-drop policy if exists "rsvps_owner" on event_rsvps;
+drop policy if exists "teachers_all" on teachers;
+drop policy if exists "teachers_admin" on teachers;
 drop policy if exists "bookmarks_owner" on bookmarks;
 
 alter table profiles enable row level security;
@@ -1798,16 +1743,23 @@ create policy "config_admin" on site_config for all using (
   OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
 );
 
-alter table alumni_events enable row level security;
-create policy "events_all" on alumni_events for select using (true);
-create policy "events_admin" on alumni_events for all using (
+alter table teachers enable row level security;
+create policy "teachers_all_select" on teachers for select using (true);
+create policy "teachers_admin_insert" on teachers for insert with check (
   (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
   OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
+  OR auth.jwt() ->> 'email' = 'fllimonm1212@gmail.com'
 );
-
-alter table event_rsvps enable row level security;
-create policy "rsvps_all" on event_rsvps for select using (true);
-create policy "rsvps_owner" on event_rsvps for all using (auth.uid() = user_id);
+create policy "teachers_admin_update" on teachers for update using (
+  (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
+  OR auth.jwt() ->> 'email' = 'fllimonm1212@gmail.com'
+);
+create policy "teachers_admin_delete" on teachers for delete using (
+  (exists (select 1 from profiles where id = auth.uid() and role = 'admin'))
+  OR auth.jwt() ->> 'email' = 'chembondhon@gmail.com'
+  OR auth.jwt() ->> 'email' = 'fllimonm1212@gmail.com'
+);
 
 alter table bookmarks enable row level security;
 create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id);
@@ -1826,7 +1778,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
             { id: 'feed', icon: LayoutGrid, label: 'Home' },
             { id: 'directory', icon: Users, label: 'Directory' },
             { id: 'messages', icon: MessageSquare, label: 'Messages' },
-            { id: 'events', icon: Calendar, label: 'Events' },
+            { id: 'teachers', icon: Users, label: 'Teachers' },
             { id: 'saved', icon: Bookmark, label: 'Saved' },
             { id: 'profile', icon: UserIcon, label: 'Profile' },
             ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Admin' }] : [])
@@ -1900,10 +1852,10 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                         Explore Directory
                       </button>
                       <button 
-                         onClick={() => setActiveTab('events')}
+                         onClick={() => setActiveTab('teachers')}
                         className="px-8 py-4 bg-indigo-500/20 backdrop-blur-md text-white border border-white/20 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-500/30 transition-all active:scale-95"
                       >
-                        Find Events
+                        View Teachers
                       </button>
                     </div>
                   </div>
@@ -1923,7 +1875,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
                   { label: 'Total Students & Alumni', count: profiles.length, icon: Users, color: 'indigo', action: () => setActiveTab('directory') },
-                  { label: 'Upcoming Events', count: events.length, icon: Calendar, color: 'blue', action: () => setActiveTab('events') },
+                  { label: 'Teachers', count: teachers.length, icon: Calendar, color: 'blue', action: () => setActiveTab('teachers') },
                   { label: 'Saved Contacts', count: bookmarks.size, icon: Bookmark, color: 'slate', action: () => setActiveTab('saved') }
                 ].map((stat, idx) => (
                   <motion.div
@@ -2343,9 +2295,16 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                                   
                                   <div className="text-xs text-slate-500 space-y-2 mt-4 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                                     {profile.department && profile.university && (
-                                      <div className="flex items-start gap-2.5">
-                                        <Atom size={14} className="text-indigo-500 shrink-0 mt-0.5" />
-                                        <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
+                                      <div className="flex flex-col gap-1.5">
+                                        <div className="flex items-start gap-2.5">
+                                          <Atom size={14} className="text-indigo-500 shrink-0 mt-0.5" />
+                                          <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
+                                        </div>
+                                        {profile.hall_name && (
+                                          <div className="flex items-start gap-2.5 ml-6">
+                                            <span className="font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">{profile.hall_name}</span>
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                     {profile.email && (
@@ -2570,6 +2529,14 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                         <span className="text-slate-600 font-bold text-sm">
                           {formData.university}
                         </span>
+                        {formData.hall_name && (
+                          <>
+                            <span className="text-slate-400 font-bold text-sm">•</span>
+                            <span className="text-amber-700 font-bold bg-amber-50 px-3 py-1 rounded-lg text-sm border border-amber-100">
+                              {formData.hall_name}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <button 
@@ -2734,6 +2701,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             avatar_url: myProfile.avatar_url,
                             batch: myProfile.batch,
                             chemistry_batch: myProfile.chemistry_batch,
+                            hall_name: myProfile.hall_name || '',
                             student_id: myProfile.student_id,
                             department: myProfile.department || '',
                             university: myProfile.university || '',
@@ -2859,6 +2827,10 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 50th" value={formData.chemistry_batch || ''} onChange={(e) => setFormData({ ...formData, chemistry_batch: e.target.value })} />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Attached Hall Name</label>
+                      <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. Shaheed Ziaur Rahman Hall" value={formData.hall_name || ''} onChange={(e) => setFormData({ ...formData, hall_name: e.target.value })} />
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Student ID (Optional)</label>
                       <input type="text" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 1910123456" value={formData.student_id || ''} onChange={(e) => setFormData({ ...formData, student_id: e.target.value })} />
                     </div>
@@ -2977,396 +2949,251 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
           )}
         </motion.div>
       )}
-          {activeTab === 'events' && (
+          {activeTab === 'teachers' && (
             <motion.div 
-              key="events"
+              key="teachers"
               initial={{ opacity: 0, x: -20 }} 
               animate={{ opacity: 1, x: 0 }} 
               exit={{ opacity: 0, x: 20 }} 
               transition={{ duration: 0.3 }}
-              className="max-w-4xl mx-auto"
+              className="max-w-5xl mx-auto"
             >
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
               <div>
                 <div className="flex items-center space-x-3 mb-2">
-                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">Community Events</h2>
+                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">Our Teachers</h2>
                   <button 
-                    onClick={fetchEvents}
-                    disabled={isLoadingEvents}
+                    onClick={fetchTeachers}
+                    disabled={isLoadingTeachers}
                     className="p-2 text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
                   >
-                    <ArrowRight className={`w-5 h-5 ${isLoadingEvents ? 'animate-spin' : ''} rotate-180`} />
+                    <ArrowRight className={`w-5 h-5 ${isLoadingTeachers ? 'animate-spin' : ''} rotate-180`} />
                   </button>
                 </div>
-                <p className="text-slate-500 font-medium">Connect and celebrate with your chemistry family.</p>
+                <p className="text-slate-500 font-medium">Meet the esteemed faculty of our Chemistry Department.</p>
               </div>
-              <button
-                onClick={() => setShowEventForm(!showEventForm)}
-                className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center premium-button"
-              >
-                {showEventForm ? <X size={18} className="mr-2" /> : <Calendar size={18} className="mr-2" />}
-                {showEventForm ? 'Close Form' : 'Host New Event'}
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowTeacherForm(!showTeacherForm)}
+                  className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center premium-button"
+                >
+                  {showTeacherForm ? <X size={18} className="mr-2" /> : <UserIcon size={18} className="mr-2" />}
+                  {showTeacherForm ? 'Close Form' : 'Add Teacher'}
+                </button>
+              )}
             </div>
 
-            {showEventForm && (
+            {showTeacherForm && isAdmin && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mb-12 overflow-hidden">
                 <div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] border-slate-100 premium-shadow">
-                  <h3 className="text-2xl font-black text-slate-900 mb-8 tracking-tight">Event Details</h3>
-                  <form onSubmit={handleCreateEvent} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <h3 className="text-2xl font-black text-slate-900 mb-8 tracking-tight">{teacherForm.id ? 'Edit Teacher Details' : 'Teacher Details'}</h3>
+                  <form onSubmit={handleSaveTeacher} className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-6">
                       <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Event Name</label>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Name</label>
                         <input
                           required
                           type="text"
-                          placeholder="e.g., Annual Student & Alumni Gala 2024"
+                          placeholder="e.g., Dr. Mst. Shamsur Rahman"
                           className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                          value={eventForm.title}
-                          onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                          value={teacherForm.name}
+                          onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })}
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Description</label>
-                        <textarea
-                          placeholder="What's the plan? Share the excitement..."
-                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium h-32 resize-none"
-                          value={eventForm.description}
-                          onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
-                        ></textarea>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Designation</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="e.g., Professor"
+                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                          value={teacherForm.designation}
+                          onChange={(e) => setTeacherForm({ ...teacherForm, designation: e.target.value })}
+                        />
                       </div>
                     </div>
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Event Type</label>
-                          <select 
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium bg-white"
-                            value={eventForm.event_type}
-                            onChange={(e) => setEventForm({ ...eventForm, event_type: e.target.value as EventType })}
-                          >
-                            <option value="Reunion">Reunion</option>
-                            <option value="Seminar">Seminar</option>
-                            <option value="Webinar">Webinar</option>
-                            <option value="Football Tournament">Football Tournament</option>
-                            <option value="Cricket Tournament">Cricket Tournament</option>
-                            <option value="Other">Other</option>
-                          </select>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Photo (Optional)</label>
+                          <label className="w-full flex items-center justify-center px-5 py-4 bg-slate-50 border border-slate-100 border-dashed rounded-2xl cursor-pointer hover:bg-slate-100 transition-all text-sm font-medium text-slate-500 group relative overflow-hidden">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleTeacherAvatarUpload}
+                              disabled={isCreatingTeacher}
+                            />
+                            {teacherForm.avatar_url ? (
+                              <span className="text-emerald-600 font-bold flex items-center">
+                                <CheckCircle size={16} className="mr-2" /> Uploaded Space
+                              </span>
+                            ) : (
+                              <span className="flex items-center">
+                                <Camera size={16} className="mr-2 group-hover:text-indigo-600 transition-colors" />
+                                {isCreatingTeacher ? 'Uploading...' : 'Upload Photo'}
+                              </span>
+                            )}
+                          </label>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Date & Time</label>
-                          <input
-                            required
-                            type="datetime-local"
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                            value={eventForm.event_date}
-                            onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Location / Link</label>
-                        <div className="relative">
-                          <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Phone (Optional)</label>
                           <input
                             type="text"
-                            placeholder="Where is it happening?"
-                            className="w-full pl-12 pr-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                            value={eventForm.location}
-                            onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+                            placeholder="+880..."
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                            value={teacherForm.phone || ''}
+                            onChange={(e) => setTeacherForm({ ...teacherForm, phone: e.target.value })}
                           />
                         </div>
                       </div>
                       
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Event Banner Image (Optional)</label>
-                        <div 
-                          onClick={() => eventImageInputRef.current?.click()}
-                          className={`w-full aspect-video rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative group ${
-                            eventImageFile ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-slate-100'
-                          }`}
-                        >
-                          <input 
-                            type="file" 
-                            ref={eventImageInputRef} 
-                            className="hidden" 
-                            accept="image/*"
-                            onChange={(e) => setEventImageFile(e.target.files?.[0] || null)}
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Email (Optional)</label>
+                          <input
+                            type="email"
+                            placeholder="teacher@ru.ac.bd"
+                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                            value={teacherForm.email || ''}
+                            onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })}
                           />
-                          {eventImageFile ? (
-                            <>
-                              <img 
-                                src={URL.createObjectURL(eventImageFile)} 
-                                alt="Event preview" 
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
-                                <Camera size={24} className="mb-2" />
-                                <span className="text-xs font-bold uppercase tracking-widest">Change Image</span>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="text-center p-6">
-                              <Camera className="mx-auto text-slate-400 mb-3" size={32} />
-                              <p className="text-sm font-bold text-slate-500">Click to upload event banner</p>
-                              <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">JPG, PNG up to 5MB</p>
-                            </div>
-                          )}
                         </div>
                       </div>
 
-                      <div className="mb-6 space-y-4">
-                        <div className="flex items-center justify-between pointer-events-none">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Registration Questions (Optional)</label>
-                          <span className="text-xs font-bold text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full">Pro Feature</span>
-                        </div>
-                        <div className="space-y-3">
-                          {eventFormQuestions.map((q, idx) => (
-                            <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl">
-                              <input 
-                                type="text"
-                                className="w-full bg-transparent border-none focus:ring-0 text-sm font-medium"
-                                value={q}
-                                onChange={(e) => {
-                                  const newQ = [...eventFormQuestions];
-                                  newQ[idx] = e.target.value;
-                                  setEventFormQuestions(newQ);
-                                }}
-                                placeholder="Enter your question... (e.g. T-Shirt Size?)"
-                              />
-                              <button type="button" onClick={() => setEventFormQuestions(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-rose-500 hover:bg-rose-100 rounded-lg transition-colors">
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          ))}
-                          <button 
-                            type="button" 
-                            onClick={() => setEventFormQuestions(prev => [...prev, ''])}
-                            className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold text-sm hover:border-indigo-300 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2"
+                      <div className="flex gap-4 mt-4">
+                        <button
+                          type="submit"
+                          disabled={isCreatingTeacher}
+                          className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button"
+                        >
+                          {isCreatingTeacher ? 'Saving...' : (teacherForm.id ? 'Save Changes' : 'Add Teacher')}
+                        </button>
+                        {teacherForm.id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTeacherForm({ id: undefined, name: '', designation: '', department: 'Chemistry', university: 'University of Rajshahi', phone: '', email: '', avatar_url: undefined });
+                              setShowTeacherForm(false);
+                            }}
+                            className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
                           >
-                            + Add Custom Question
+                            Cancel
                           </button>
-                        </div>
+                        )}
                       </div>
-                      
-                      <button
-                        type="submit"
-                        disabled={isCreatingEvent}
-                        className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button mt-2"
-                      >
-                        {isCreatingEvent ? 'Creating Event...' : 'Launch Event'}
-                      </button>
                     </div>
                   </form>
                 </div>
               </motion.div>
             )}
 
-            {isLoadingEvents && events.length === 0 && (
+            {isLoadingTeachers && teachers.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20">
                 <Loader2 className="w-12 h-12 text-indigo-200 animate-spin mb-4" />
-                <p className="text-slate-400 font-black text-xs uppercase tracking-widest">Finding events...</p>
+                <p className="text-slate-400 font-black text-xs uppercase tracking-widest">Loading teachers...</p>
               </div>
             )}
 
-            {!isLoadingEvents && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-8">
-              {events.map(event => {
-                const currentUserRSVP = event.user_rsvp?.find((r: any) => true); // Placeholder as we need careful logic for user-specific fetch
-                // Actually, the current query returns ALL statuses. To fix this beautifully, 
-                // we should check if ANY of the statuses belong to the current user if we can.
-                // But the query doesn't filter. Let's assume for now the user is going if they joined.
-                const isGoing = event.user_rsvp?.some(r => r.status === 'Going');
-                const isMaybe = event.user_rsvp?.some(r => r.status === 'Maybe');
-                const rsvpCount = event.rsvps?.[0]?.count || 0;
-                
-                const eventDate = new Date(event.event_date);
-                const isPast = eventDate < new Date();
-                
-                return (
-                  <motion.div
-                    key={event.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="group bg-white rounded-[2.5rem] premium-shadow-lg premium-hover border border-slate-100 overflow-hidden flex flex-col h-full relative"
-                  >
-                    {/* Header Image / Pattern */}
-                    <div className="h-52 w-full relative overflow-hidden shrink-0">
-                      {event.image_url ? (
-                        <img 
-                          src={event.image_url} 
-                          alt={event.title} 
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className={`w-full h-full bg-gradient-to-br transition-all duration-500 ${
-                          event.event_type === 'Reunion' ? 'from-indigo-600 to-blue-700' :
-                          event.event_type === 'Seminar' ? 'from-emerald-500 to-teal-700' :
-                          event.event_type === 'Webinar' ? 'from-purple-500 to-indigo-700' :
-                          event.event_type === 'Football Tournament' ? 'from-green-500 to-emerald-700' :
-                          event.event_type === 'Cricket Tournament' ? 'from-blue-500 to-cyan-700' :
-                          'from-slate-700 to-slate-900'
-                        }`}>
-                          <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Calendar className="text-white/20 w-24 h-24 rotate-12" />
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Date Badge Overlay */}
-                      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md rounded-2xl p-2 flex flex-col items-center justify-center min-w-[64px] shadow-xl border border-white/50 z-20">
-                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-1">
-                          {eventDate.toLocaleString('en-US', { month: 'short' })}
-                        </span>
-                        <span className="text-2xl font-black text-slate-900 leading-none">
-                          {eventDate.getDate()}
-                        </span>
+            {!isLoadingTeachers && (
+              <div className="flex flex-col gap-4">
+              {teachers.map(teacher => (
+                <motion.div
+                  key={teacher.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl premium-shadow premium-hover overflow-hidden group flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 relative bg-white"
+                >
+                  <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
+                  <div className="relative shrink-0 z-10">
+                    {teacher.avatar_url ? (
+                      <img src={teacher.avatar_url} alt={teacher.name} className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-white object-cover shadow-md group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-3xl font-black shadow-md group-hover:scale-105 transition-transform duration-500">
+                        {teacher.name.charAt(0).toUpperCase()}
                       </div>
-
-                      {/* Type Badge */}
-                      <div className="absolute top-4 right-4 z-20">
-                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md border shadow-lg ${
-                          event.image_url ? 'bg-black/30 text-white border-white/20' : 'bg-white/20 text-white border-white/10'
-                        }`}>
-                          {event.event_type}
-                        </span>
-                      </div>
-
-                      {/* Overlays */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
-                      
-                      {isPast && (
-                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-10">
-                          <span className="bg-white/10 text-white border border-white/20 px-6 py-2 rounded-full font-black text-xs uppercase tracking-[0.2em] backdrop-blur-xl">
-                            Past Event
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content Section */}
-                    <div className="p-6 sm:p-8 flex flex-col flex-grow">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center space-x-2 text-indigo-600 text-xs font-black uppercase tracking-widest">
-                          <Clock size={14} />
-                          <span>
-                            {eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                        <div className="flex -space-x-2">
-                          {[...Array(Math.min(3, rsvpCount))].map((_, i) => (
-                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
-                              <Users size={12} />
-                            </div>
-                          ))}
-                          {rsvpCount > 3 && (
-                            <div className="w-7 h-7 rounded-full border-2 border-white bg-indigo-50 flex items-center justify-center text-[10px] font-black text-indigo-600">
-                              +{rsvpCount - 3}
-                            </div>
-                          )}
-                          {rsvpCount === 0 && (
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Be the first</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight group-hover:text-indigo-600 transition-colors line-clamp-1">
-                        {event.title}
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0 z-10 w-full">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <h3 className="text-xl font-black text-slate-900 truncate tracking-tight">
+                        {teacher.name}
                       </h3>
-
-                      <div className="flex items-center text-sm font-bold text-slate-500 mb-6">
-                        <MapPin size={16} className="mr-2 text-rose-500" />
-                        <span className="truncate">{event.location || 'TBA'}</span>
-                      </div>
-
-                      {event.description && (
-                        <p className="text-slate-500 text-sm leading-relaxed font-medium line-clamp-2 mb-6">
-                          {event.description}
-                        </p>
-                      )}
-
-                      {event.custom_fields && event.custom_fields.length > 0 && (
-                        <div className="mt-auto mb-6 flex items-center text-[10px] font-black text-amber-600 bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 uppercase tracking-widest">
-                          <FileText size={14} className="mr-2" /> Registration Required
-                        </div>
-                      )}
-
-                      {/* Organizer & Actions */}
-                      <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="relative w-10 h-10">
-                            {event.profiles?.avatar_url ? (
-                              <img src={event.profiles.avatar_url} alt="" className="w-full h-full rounded-2xl object-cover shadow-md" />
-                            ) : (
-                              <div className="w-full h-full rounded-2xl bg-indigo-50 flex items-center justify-center text-sm font-black text-indigo-400 shadow-sm">
-                                {event.profiles?.name?.charAt(0)}
-                              </div>
-                            )}
-                            <div className="absolute -bottom-1 -right-1">
-                              <UserBadges profile={event.profiles} size={14} />
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Host</p>
-                            <p className="text-xs font-bold text-slate-800 line-clamp-1">{event.profiles?.name || 'Chem Student & Alumni'}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex space-x-2">
-                          <motion.button 
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => initiateRSVP(event, 'Maybe')} 
-                            className={`p-3 rounded-2xl transition-all border ${
-                              isMaybe 
-                                ? 'bg-amber-100 text-amber-700 border-amber-200' 
-                                : 'bg-white border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50/50'
-                            }`}
-                            title="Maybe"
+                      {isAdmin && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button 
+                            onClick={() => {
+                              setTeacherForm(teacher);
+                              setShowTeacherForm(true);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Edit Teacher"
                           >
-                            <HelpCircle size={18} />
-                          </motion.button>
-                          <motion.button 
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => initiateRSVP(event, 'Going')} 
-                            className={`flex items-center space-x-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg ${
-                              isGoing 
-                                ? 'bg-indigo-600 text-white shadow-indigo-200 border-transparent' 
-                                : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-500 hover:text-indigo-600 shadow-slate-100'
-                            }`}
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTeacher(teacher.id)}
+                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Delete Teacher"
                           >
-                            {isGoing ? <CheckCircle size={16} /> : <ArrowRight size={16} />}
-                            <span>{isGoing ? 'Going' : 'RSVP Now'}</span>
-                          </motion.button>
+                            <Trash2 size={16} />
+                          </button>
                         </div>
-                      </div>
-
-                      {(isAdmin || event.author_id === currentUser?.id) && (
-                        <button 
-                          onClick={() => loadEventResponses(event)}
-                          className="mt-4 w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-600 py-2 border-t border-dashed border-slate-100 transition-colors"
-                        >
-                          Show Guest List & Form Responses
-                        </button>
                       )}
                     </div>
-                  </motion.div>
-                );
-              })}
-              {events.length === 0 && (
+                    
+                    <div className="text-sm font-bold text-indigo-700 truncate mb-3 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 inline-flex items-center">
+                      <Briefcase size={14} className="mr-2" /> {teacher.designation}
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mb-4">
+                      {teacher.email && (
+                        <div className="flex items-center gap-1.5">
+                          <Mail size={14} className="text-slate-400" />
+                          <a href={`mailto:${teacher.email}`} className="truncate hover:text-indigo-600">{teacher.email}</a>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1.5">
+                        <Atom size={14} className="text-slate-400" />
+                        <span className="truncate">{teacher.department}, {teacher.university}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    {teacher.phone && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
+                        <a 
+                          href={`tel:${teacher.phone}`}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center gap-2"
+                        >
+                          <Phone size={14} /> Call <span className="hidden sm:inline">{teacher.phone}</span>
+                        </a>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(teacher.phone || '');
+                            alert('Phone number copied to clipboard!');
+                          }}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2"
+                          title="Copy Phone Number"
+                        >
+                          <Copy size={14} /> Copy
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+              
+              {teachers.length === 0 && (
                 <div className="col-span-full text-center py-24 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 premium-shadow-sm">
                   <div className="w-24 h-24 bg-indigo-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6">
-                    <Calendar className="h-12 w-12 text-indigo-300" />
+                    <Users className="h-12 w-12 text-indigo-300" />
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">No Upcoming Events</h3>
-                  <p className="text-slate-500 font-medium max-w-xs mx-auto">The calendar is looking a bit empty! Why not bring the chemistry together?</p>
-                  <button
-                    onClick={() => setShowEventForm(true)}
-                    className="mt-8 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 premium-button"
-                  >
-                    Host the first event
-                  </button>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">No Teachers Added</h3>
+                  <p className="text-slate-500 font-medium max-w-xs mx-auto">Admins can add teachers to display here.</p>
                 </div>
               )}
             </div>
@@ -3461,9 +3288,16 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       </div>
                       
                       {profile.department && profile.university && (
-                        <div className="flex items-start gap-2.5">
-                          <Atom size={14} className="text-indigo-500 shrink-0 mt-0.5" />
-                          <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
+                        <div className="flex flex-col gap-1.5">
+                           <div className="flex items-start gap-2.5">
+                             <Atom size={14} className="text-indigo-500 shrink-0 mt-0.5" />
+                             <span className="font-medium text-slate-700">{profile.department}, {profile.university}</span>
+                           </div>
+                           {profile.hall_name && (
+                             <div className="flex items-start gap-2.5 ml-6">
+                               <span className="font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">{profile.hall_name}</span>
+                             </div>
+                           )}
                         </div>
                       )}
                       {profile.email && (
@@ -3588,11 +3422,11 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
               <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
                 <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm relative z-10">
-                  <Calendar size={32} />
+                  <GraduationCap size={32} />
                 </div>
                 <div className="relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Events</p>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{events.length}</h3>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Teachers</p>
+                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{teachers.length}</h3>
                 </div>
               </motion.div>
               <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
@@ -4039,6 +3873,12 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                         <span className="bg-indigo-50 px-3 py-1 rounded-lg">{selectedProfile.department}</span>
                         <span className="text-slate-300">•</span>
                         <span className="bg-slate-50 text-slate-500 px-3 py-1 rounded-lg">{selectedProfile.university}</span>
+                        {selectedProfile.hall_name && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-lg">{selectedProfile.hall_name}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -4272,150 +4112,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                 >
                   Confirm Delete
                 </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* CUSTOM RSVP FORM MODAL */}
-      <AnimatePresence>
-        {rsvpEvent && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6"
-            onClick={() => setRsvpEvent(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 40 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white w-full max-w-lg overflow-y-auto custom-scrollbar rounded-[2rem] shadow-2xl relative premium-shadow border border-slate-100 flex flex-col"
-              style={{ maxHeight: '90vh' }}
-            >
-              <div className="p-6 sm:p-8 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 text-white relative overflow-hidden shrink-0">
-                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-                <div className="flex justify-between items-start relative z-10">
-                  <div>
-                    <h3 className="text-2xl font-black tracking-tight leading-tight">{rsvpEvent.title}</h3>
-                    <p className="text-indigo-100 text-sm mt-1 font-medium">Please fill out this information to complete your registration.</p>
-                  </div>
-                  <button onClick={() => setRsvpEvent(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-              <div className="p-6 sm:p-8 flex-1 overflow-y-auto">
-                <div className="space-y-6">
-                  {rsvpEvent.custom_fields?.map((question, idx) => (
-                    <div key={idx}>
-                      <label className="block text-xs font-bold text-slate-700 mb-2">{question} <span className="text-rose-500">*</span></label>
-                      <input
-                        type="text"
-                        required
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-sm"
-                        value={rsvpAnswers[question] || ''}
-                        onChange={(e) => setRsvpAnswers(prev => ({ ...prev, [question]: e.target.value }))}
-                        placeholder="Your answer..."
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-6 sm:p-8 border-t border-slate-100 bg-slate-50 shrink-0">
-                <button
-                  onClick={() => {
-                    const allAnswered = rsvpEvent.custom_fields?.every(q => rsvpAnswers[q]?.trim().length > 0);
-                    if (!allAnswered) {
-                      alert("Please fill out all the required fields.");
-                      return;
-                    }
-                    handleRSVP(rsvpEvent.id, 'Going', rsvpAnswers);
-                  }}
-                  disabled={isSubmittingRSVP}
-                  className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button"
-                >
-                  {isSubmittingRSVP ? 'Registering...' : 'Complete Registration'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* VIEW RESPONSES MODAL */}
-      <AnimatePresence>
-        {viewResponsesEvent && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6"
-            onClick={() => setViewResponsesEvent(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 40 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 40 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-[2rem] shadow-2xl relative premium-shadow border border-slate-100"
-            >
-              <div className="p-6 sm:p-8 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 text-white relative overflow-hidden shrink-0 rounded-t-[2rem]">
-                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
-                <div className="flex justify-between items-start relative z-10">
-                  <div>
-                    <h3 className="text-2xl font-black tracking-tight leading-tight">{viewResponsesEvent.title} - Registrations</h3>
-                    <p className="text-indigo-100 text-sm mt-1 font-medium">{eventResponses.length} members are going.</p>
-                  </div>
-                  <button onClick={() => setViewResponsesEvent(null)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-              <div className="p-6 sm:p-8 overflow-y-auto flex-1 custom-scrollbar">
-                {isLoadingResponses ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 size={32} className="animate-spin text-indigo-500" />
-                  </div>
-                ) : eventResponses.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Users size={48} className="mx-auto text-slate-300 mb-4" />
-                    <p className="text-slate-500 font-medium">No registrations yet.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {eventResponses.map((rsvp, idx) => (
-                      <div key={idx} className="bg-slate-50 border border-slate-100 rounded-2xl p-5 shadow-sm">
-                        <div className="flex items-center space-x-3 mb-4">
-                          {rsvp.profiles?.avatar_url ? (
-                            <img src={rsvp.profiles.avatar_url} className="w-10 h-10 rounded-xl object-cover" alt="" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-500 font-bold border border-slate-300">
-                              {rsvp.profiles?.name?.charAt(0)}
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-black text-slate-900 text-sm">{rsvp.profiles?.name}</div>
-                            <div className="text-xs text-slate-500 font-medium">{rsvp.profiles?.batch} Batch</div>
-                          </div>
-                        </div>
-                        {rsvp.answers && Object.keys(rsvp.answers).length > 0 && (
-                          <div className="space-y-2 mt-4 pt-4 border-t border-slate-200">
-                            {Object.entries(rsvp.answers).map(([key, value], i) => (
-                              <div key={i}>
-                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{key}</div>
-                                <div className="text-sm font-medium text-slate-700">{value as React.ReactNode}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </motion.div>
           </motion.div>
