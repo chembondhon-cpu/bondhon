@@ -6,7 +6,7 @@ import {
   Target, X, Clock, Map, Bookmark, Calendar, CheckCircle, CalendarDays,
   BadgeCheck, FileText, ExternalLink, MoreVertical, Edit, Trash2, Crown, HelpCircle,
   ShieldCheck, ArrowRight, Building2, Copy, Check, BookOpen, Hash, Atom, Hexagon,
-  Sparkles,
+  Sparkles, Heart, MessageCircle, 
   TestTube, TestTubes, Microscope, Dna, Pipette, Beaker, Activity, LayoutGrid, List, Cloud, CloudOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,6 +16,10 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toPng } from 'html-to-image';
 import { saveProfilesLocally, getLocalProfiles, saveOfflineMutation, getOfflineMutations, clearOfflineMutation } from './lib/db';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
+} from 'recharts';
 import { Messages } from './components/Messages';
 
 type CurrentStatus = 'Student' | 'Govt Job' | 'Private Job' | 'Business' | 'Abroad' | '';
@@ -218,6 +222,7 @@ export default function App() {
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
 
   const [activeTab, setActiveTab] = useState<'feed' | 'directory' | 'profile' | 'teachers' | 'saved' | 'admin' | 'messages'>('feed');
+  const [adminSubTab, setAdminSubTab] = useState<'overview' | 'verifications' | 'users' | 'moderation' | 'settings'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterBatch, setFilterBatch] = useState<string>('All');
@@ -231,6 +236,7 @@ export default function App() {
   const [userToDelete, setUserToDelete] = useState<{id: string, name: string} | null>(null);
   
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const profileCardRef = useRef<HTMLDivElement>(null);
@@ -264,6 +270,39 @@ export default function App() {
 
   const isAdmin = currentUser?.email === 'fllimonm1212@gmail.com' || currentUser?.email === 'chembondhon@gmail.com' || profiles.find(p => p.id === currentUser?.id)?.role === 'admin';
   const myProfile = profiles.find(p => p.id === currentUser?.id);
+
+  const statusChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    profiles.forEach(p => {
+      const status = p.current_status || 'Unknown';
+      counts[status] = (counts[status] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [profiles]);
+
+  const batchChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    profiles.forEach(p => {
+      if (p.chemistry_batch) {
+        counts[p.chemistry_batch] = (counts[p.chemistry_batch] || 0) + 1;
+      }
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [profiles]);
+
+  const bloodChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    profiles.forEach(p => {
+      if (p.blood_group) {
+        counts[p.blood_group] = (counts[p.blood_group] || 0) + 1;
+      }
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [profiles]);
+
+  const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#06b6d4'];
 
   const defaultHeroImage = 'https://images.unsplash.com/photo-1576086213369-97a306d36557?q=80&w=2080&auto=format&fit=crop';
   const [heroImageUrl, setHeroImageUrl] = useState<string>(defaultHeroImage);
@@ -997,6 +1036,58 @@ export default function App() {
     }
   };
 
+  const handleUpdateUserRole = async (profileId: string, role: 'admin' | 'user') => {
+    if (!isAdmin) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', profileId);
+    
+    if (error) {
+      console.error('Error updating user role:', error);
+      alert('Failed to update user role.');
+    } else {
+      alert(`User role updated to ${role} successfully.`);
+      fetchProfiles();
+    }
+  };
+
+  const handleDeleteUser = async (profileId: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm('WARNING: This will permanently delete this user profile. THIS CANNOT BE UNDONE. Proceed?')) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', profileId);
+    
+    if (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user.');
+    } else {
+      alert('User deleted successfully.');
+      fetchProfiles();
+      setUserToDelete(null);
+    }
+  };
+
+  const handleDeletePostAdmin = async (postId: string) => {
+    if (!isAdmin) return;
+    if (!window.confirm('Delete this post?')) return;
+
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId);
+    
+    if (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post.');
+    } else {
+      fetchPosts();
+    }
+  };
+
   const handleTeacherAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !isAdmin) return;
@@ -1069,8 +1160,11 @@ export default function App() {
 
   const handleDeleteTeacher = async (id: string) => {
     if (!isAdmin) return;
-    const confirm = window.confirm('Are you sure you want to delete this teacher?');
-    if (!confirm) return;
+    const teacher = teachers.find(t => t.id === id);
+    if (!teacher) return;
+    
+    const confirmDelete = window.confirm(`Are you sure you want to permanently delete Assistant/Professor ${teacher.name}? This action cannot be undone.`);
+    if (!confirmDelete) return;
 
     try {
       // Optimistic update
@@ -1084,6 +1178,11 @@ export default function App() {
         fetchTeachers();
         throw error;
       }
+      if (teacherForm && teacherForm.id === id) {
+        setTeacherForm({ name: '', designation: '', department: 'Chemistry', university: 'University of Rajshahi', email: '', phone: '', avatar_url: '' });
+        setShowTeacherForm(false);
+      }
+      alert(`${teacher.name} has been deleted successfully.`);
     } catch (error: any) {
       console.error("Error deleting teacher:", error);
       alert("Failed to delete teacher: " + error.message);
@@ -1810,7 +1909,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-32 sm:pb-20">
         <AnimatePresence mode="wait">
           {/* FEED TAB */}
           {activeTab === 'feed' && (
@@ -2088,8 +2187,81 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     ))
                   )}
                 </div>
-              </div>
+
+                </div>
               )}
+
+              {/* High-Graphics Developer Credit Footer */}
+              <div className="mt-32 mb-24 flex flex-col items-center justify-center px-4">
+                <motion.div 
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className="relative p-10 rounded-[3rem] bg-white/60 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(79,70,229,0.1)] items-center justify-center flex flex-col text-center max-w-sm w-full group overflow-hidden"
+                >
+                  {/* Animated Pulsing Border Glow */}
+                  <div className="absolute inset-x-0 inset-y-0 rounded-[3rem] border-2 border-indigo-500/20 animate-[pulse_3s_infinite] pointer-events-none"></div>
+                  
+                  {/* Dynamic Moving Lights */}
+                  <motion.div 
+                    animate={{ 
+                      opacity: [0.1, 0.3, 0.1],
+                      scale: [1, 1.2, 1],
+                    }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                    className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 blur-[60px] pointer-events-none"
+                  ></motion.div>
+                  
+                  <div className="relative z-10 space-y-5">
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="h-px w-10 bg-indigo-100"></div>
+                      <span className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em] italic">Lead Architect</span>
+                      <div className="h-px w-10 bg-indigo-100"></div>
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        const devEmails = ['fllimonm1212@gmail.com', 'chembondhon@gmail.com'];
+                        const devProfile = profiles.find(p => devEmails.includes(p.email || ''));
+                        if (devProfile) {
+                          setSelectedProfile(devProfile);
+                        } else {
+                          const byName = profiles.find(p => p.name?.toLowerCase().includes('fakhrul islam limon'));
+                          if (byName) {
+                            setSelectedProfile(byName);
+                          } else {
+                            alert('Profile loading... Please try again.');
+                          }
+                        }
+                      }}
+                      className="block relative"
+                    >
+                      <h2 className="text-3xl font-black text-slate-900 tracking-tighter transition-all group-hover:text-indigo-600 drop-shadow-sm">
+                        Fakhrul Islam Limon
+                      </h2>
+                      <div className="mt-2 h-1.5 w-1/2 bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 group-hover:w-full transition-all duration-1000 rounded-full mx-auto shadow-sm"></div>
+                    </motion.button>
+
+                    <div className="flex items-center justify-center gap-4 pt-3">
+                      <div className="flex items-center gap-2 text-[10px] font-black text-white bg-indigo-600 px-4 py-1.5 rounded-2xl uppercase tracking-widest shadow-lg shadow-indigo-200 border border-indigo-400 group-hover:scale-110 transition-all cursor-default">
+                        <Sparkles size={12} className="animate-spin-slow" />
+                        Full Stack Engineer
+                      </div>
+                    </div>
+
+                    <div className="pt-8 flex flex-col items-center gap-3">
+                       <div className="flex items-center gap-2">
+                         <Heart size={14} className="text-rose-500 fill-rose-500 animate-pulse" />
+                         <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Chemistry Networking HQ</span>
+                       </div>
+                       <div className="h-0.5 w-12 bg-slate-100 rounded-full"></div>
+                       <p className="text-[8px] font-bold text-slate-300 uppercase tracking-[0.3em]">Crafted with Precision • 2024</p>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
             </motion.div>
           )}
 
@@ -2313,16 +2485,10 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                                         <span className="truncate font-medium">{profile.email}</span>
                                       </div>
                                     )}
-                                    {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                                    {profile.phone && (
                                       <div className="flex items-center gap-2.5">
                                         <Phone size={14} className="text-slate-400 shrink-0" />
                                         <span className="font-medium">{profile.phone}</span>
-                                      </div>
-                                    )}
-                                    {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
-                                      <div className="flex items-center gap-2.5">
-                                        <Phone size={14} className="text-slate-400 shrink-0" />
-                                        <span className="italic text-slate-400 font-medium">Private</span>
                                       </div>
                                     )}
                                   </div>
@@ -2417,7 +2583,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                                 <span className="truncate max-w-[180px]">{profile.email}</span>
                               </div>
                             )}
-                            {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                            {profile.phone && (
                               <div className="flex items-center gap-1.5">
                                 <Phone size={14} className="text-slate-400" />
                                 <span>{profile.phone}</span>
@@ -2635,11 +2801,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                               <div className="flex items-center truncate">
                                 <Phone size={16} className="text-indigo-600 mr-3" />
                                 <span className="text-xs font-bold text-slate-700 truncate">{formData.phone}</span>
-                                {formData.is_phone_private && (
-                                  <span className="ml-2 px-1.5 py-0.5 bg-slate-200 text-slate-600 text-[8px] font-black uppercase rounded-md flex items-center">
-                                    <EyeOff size={8} className="mr-1" /> Private
-                                  </span>
-                                )}
                               </div>
                               <button 
                                 onClick={() => handleCopy(formData.phone!, 'profile-phone')}
@@ -2667,13 +2828,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     </div>
                   </div>
 
-                  <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${formData.is_public ? 'bg-green-500' : 'bg-slate-400'}`}></div>
-                      <span className="text-sm font-medium text-slate-600">
-                        {formData.is_public ? 'Public Profile' : 'Private Profile'}
-                      </span>
-                    </div>
+                  <div className="mt-8 pt-8 border-t border-slate-100 flex items-center justify-end">
                     <div className="text-xs text-slate-400">
                       Member since {new Date().getFullYear()}
                     </div>
@@ -2725,16 +2880,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       className="px-5 py-2.5 rounded-xl text-sm font-bold text-white/80 hover:text-white hover:bg-white/10 transition-all backdrop-blur-md border border-white/20"
                     >
                       Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, is_public: !formData.is_public })}
-                      className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg ${
-                        formData.is_public ? 'bg-blue-500 text-white shadow-blue-500/20' : 'bg-slate-700 text-slate-200 shadow-slate-900/20'
-                      }`}
-                    >
-                      {formData.is_public ? <Eye size={16} /> : <EyeOff size={16} />}
-                      <span className="hidden sm:inline">{formData.is_public ? 'Public Profile' : 'Private Profile'}</span>
                     </button>
                   </div>
                 </div>
@@ -2902,26 +3047,13 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                 </div>
 
                 <div className="border-t border-slate-200 pt-6">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="mb-4">
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Contact Information</h3>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, is_phone_private: !formData.is_phone_private })}
-                      className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        formData.is_phone_private 
-                          ? 'bg-amber-100 text-amber-700 border border-amber-200' 
-                          : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
-                      }`}
-                    >
-                      {formData.is_phone_private ? <EyeOff size={14} /> : <Eye size={14} />}
-                      <span>{formData.is_phone_private ? 'Phone Hidden' : 'Phone Public'}</span>
-                    </button>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
                       <input type="tel" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="01XXXXXXXXX" value={formData.phone || ''} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
-                      <p className="text-[10px] text-slate-400 mt-1 font-medium">Use the toggle above to hide your number from others.</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
@@ -2987,101 +3119,108 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mb-12 overflow-hidden">
                 <div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] border-slate-100 premium-shadow">
                   <h3 className="text-2xl font-black text-slate-900 mb-8 tracking-tight">{teacherForm.id ? 'Edit Teacher Details' : 'Teacher Details'}</h3>
-                  <form onSubmit={handleSaveTeacher} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Name</label>
-                        <input
-                          required
-                          type="text"
-                          placeholder="e.g., Dr. Mst. Shamsur Rahman"
-                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                          value={teacherForm.name}
-                          onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Designation</label>
-                        <input
-                          required
-                          type="text"
-                          placeholder="e.g., Professor"
-                          className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                          value={teacherForm.designation}
-                          onChange={(e) => setTeacherForm({ ...teacherForm, designation: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <form onSubmit={handleSaveTeacher} className="flex flex-col gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 flex flex-col gap-6">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center">
+                          <UserIcon size={12} className="mr-2" /> Primary Identity
+                        </p>
                         <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Photo (Optional)</label>
-                          <label className="w-full flex items-center justify-center px-5 py-4 bg-slate-50 border border-slate-100 border-dashed rounded-2xl cursor-pointer hover:bg-slate-100 transition-all text-sm font-medium text-slate-500 group relative overflow-hidden">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleTeacherAvatarUpload}
-                              disabled={isCreatingTeacher}
-                            />
-                            {teacherForm.avatar_url ? (
-                              <span className="text-emerald-600 font-bold flex items-center">
-                                <CheckCircle size={16} className="mr-2" /> Uploaded Space
-                              </span>
-                            ) : (
-                              <span className="flex items-center">
-                                <Camera size={16} className="mr-2 group-hover:text-indigo-600 transition-colors" />
-                                {isCreatingTeacher ? 'Uploading...' : 'Upload Photo'}
-                              </span>
-                            )}
-                          </label>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Name</label>
+                          <input
+                            required
+                            type="text"
+                            placeholder="e.g., Dr. Mst. Shamsur Rahman"
+                            className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                            value={teacherForm.name}
+                            onChange={(e) => setTeacherForm({ ...teacherForm, name: e.target.value })}
+                          />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Phone (Optional)</label>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Designation</label>
                           <input
+                            required
                             type="text"
-                            placeholder="+880..."
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
-                            value={teacherForm.phone || ''}
-                            onChange={(e) => setTeacherForm({ ...teacherForm, phone: e.target.value })}
+                            placeholder="e.g., Professor"
+                            className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                            value={teacherForm.designation}
+                            onChange={(e) => setTeacherForm({ ...teacherForm, designation: e.target.value })}
                           />
                         </div>
                       </div>
-                      
-                      <div className="grid grid-cols-1 gap-4">
+
+                      <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 flex flex-col gap-6">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center">
+                          <Mail size={12} className="mr-2" /> Contact & Media
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Photo (Optional)</label>
+                            <label className="w-full flex items-center justify-center h-[58px] px-5 bg-white border border-slate-200 border-dashed rounded-2xl cursor-pointer hover:bg-slate-50 transition-all text-sm font-medium text-slate-500 group relative overflow-hidden">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleTeacherAvatarUpload}
+                                disabled={isCreatingTeacher}
+                              />
+                              {teacherForm.avatar_url ? (
+                                <span className="text-emerald-600 font-bold flex items-center">
+                                  <CheckCircle size={16} className="mr-2" /> Ready
+                                </span>
+                              ) : (
+                                <span className="flex items-center">
+                                  <Camera size={16} className="mr-2 group-hover:text-indigo-600 transition-colors" />
+                                  {isCreatingTeacher ? 'Uploading...' : 'Upload'}
+                                </span>
+                              )}
+                            </label>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Phone</label>
+                            <input
+                              type="text"
+                              placeholder="+880..."
+                              className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                              value={teacherForm.phone || ''}
+                              onChange={(e) => setTeacherForm({ ...teacherForm, phone: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        
                         <div>
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Email (Optional)</label>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Official Email</label>
                           <input
                             type="email"
                             placeholder="teacher@ru.ac.bd"
-                            className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                            className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                             value={teacherForm.email || ''}
                             onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })}
                           />
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex gap-4 mt-4">
+                    <div className="flex gap-4 pt-4 border-t border-slate-100">
+                      <button
+                        type="submit"
+                        disabled={isCreatingTeacher}
+                        className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button"
+                      >
+                        {isCreatingTeacher ? 'Saving...' : (teacherForm.id ? 'Save Changes' : 'Add Teacher')}
+                      </button>
+                      {teacherForm.id && (
                         <button
-                          type="submit"
-                          disabled={isCreatingTeacher}
-                          className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-4 rounded-2xl font-black text-sm hover:from-indigo-700 hover:to-blue-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 premium-button"
+                          type="button"
+                          onClick={() => {
+                            setTeacherForm({ id: undefined, name: '', designation: '', department: 'Chemistry', university: 'University of Rajshahi', phone: '', email: '', avatar_url: undefined });
+                            setShowTeacherForm(false);
+                          }}
+                          className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
                         >
-                          {isCreatingTeacher ? 'Saving...' : (teacherForm.id ? 'Save Changes' : 'Add Teacher')}
+                          Cancel
                         </button>
-                        {teacherForm.id && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTeacherForm({ id: undefined, name: '', designation: '', department: 'Chemistry', university: 'University of Rajshahi', phone: '', email: '', avatar_url: undefined });
-                              setShowTeacherForm(false);
-                            }}
-                            className="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-black text-sm hover:bg-slate-200 transition-all"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
+                      )}
                     </div>
                   </form>
                 </div>
@@ -3096,93 +3235,121 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
             )}
 
             {!isLoadingTeachers && (
-              <div className="flex flex-col gap-4">
-              {teachers.map(teacher => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {teachers.map((teacher, idx) => (
                 <motion.div
+                  layout
                   key={teacher.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl premium-shadow premium-hover overflow-hidden group flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 relative bg-white"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
+                  className="glass-card flex flex-col rounded-[2.5rem] premium-shadow premium-hover overflow-hidden group cursor-pointer relative bg-white border border-slate-200/50"
+                  onClick={() => {
+                    if (teacher.phone) {
+                      const confirmCall = window.confirm(`Call ${teacher.name} at ${teacher.phone}?`);
+                      if (confirmCall) window.location.href = `tel:${teacher.phone}`;
+                    }
+                  }}
                 >
-                  <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none z-0"></div>
-                  <div className="relative shrink-0 z-10">
-                    {teacher.avatar_url ? (
-                      <img src={teacher.avatar_url} alt={teacher.name} className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-white object-cover shadow-md group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl border-[3px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-3xl font-black shadow-md group-hover:scale-105 transition-transform duration-500">
-                        {teacher.name.charAt(0).toUpperCase()}
+                  {/* Card Header Background */}
+                  <div className="h-28 w-full bg-[#1e3a8a] relative overflow-hidden shrink-0">
+                    <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/30 to-blue-600/30"></div>
+                    
+                    {isAdmin && (
+                      <div className="absolute top-4 right-4 flex gap-2 z-20">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTeacherForm(teacher);
+                            setShowTeacherForm(true);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white/90 hover:text-white hover:bg-white/20 transition-all border border-white/20 shadow-lg"
+                          title="Edit Teacher"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTeacher(teacher.id);
+                          }}
+                          className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white/90 hover:text-rose-400 hover:bg-white/20 transition-all border border-white/20 shadow-lg"
+                          title="Delete Teacher"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     )}
                   </div>
                   
-                  <div className="flex-1 min-w-0 z-10 w-full">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                      <h3 className="text-xl font-black text-slate-900 truncate tracking-tight">
-                        {teacher.name}
-                      </h3>
-                      {isAdmin && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button 
-                            onClick={() => {
-                              setTeacherForm(teacher);
-                              setShowTeacherForm(true);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                            title="Edit Teacher"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTeacher(teacher.id)}
-                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Delete Teacher"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                  <div className="px-6 pb-6 flex-1 flex flex-col relative z-10">
+                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
+                    
+                    {/* Floating Avatar */}
+                    <div className="-mt-14 mb-4 relative">
+                      {teacher.avatar_url ? (
+                        <img src={teacher.avatar_url} alt={teacher.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                        <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
+                          {teacher.name.charAt(0).toUpperCase()}
                         </div>
                       )}
-                    </div>
-                    
-                    <div className="text-sm font-bold text-indigo-700 truncate mb-3 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 inline-flex items-center">
-                      <Briefcase size={14} className="mr-2" /> {teacher.designation}
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mb-4">
-                      {teacher.email && (
-                        <div className="flex items-center gap-1.5">
-                          <Mail size={14} className="text-slate-400" />
-                          <a href={`mailto:${teacher.email}`} className="truncate hover:text-indigo-600">{teacher.email}</a>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                        <Atom size={14} className="text-slate-400" />
-                        <span className="truncate">{teacher.department}, {teacher.university}</span>
+                      <div className="absolute bottom-2 left-20">
+                        <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-white shadow-sm animate-pulse"></div>
                       </div>
                     </div>
 
-                    {/* Quick Actions */}
-                    {teacher.phone && (
-                      <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-                        <a 
-                          href={`tel:${teacher.phone}`}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center gap-2"
-                        >
-                          <Phone size={14} /> Call <span className="hidden sm:inline">{teacher.phone}</span>
-                        </a>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(teacher.phone || '');
-                            alert('Phone number copied to clipboard!');
-                          }}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2"
-                          title="Copy Phone Number"
-                        >
-                          <Copy size={14} /> Copy
-                        </button>
+                    <h3 className="text-xl font-black text-slate-900 leading-tight group-hover:text-indigo-700 transition-colors tracking-tight truncate mb-1">
+                      {teacher.name}
+                    </h3>
+                    
+                    <div className="text-sm font-bold text-indigo-700 mb-4 bg-indigo-50/50 px-3 py-1.5 rounded-lg border border-indigo-100/50 inline-block w-fit">
+                      {teacher.designation}
+                    </div>
+                    
+                    <div className="space-y-2 mt-auto">
+                      <div className="flex items-center gap-3 text-[11px] text-slate-500 bg-slate-50/40 p-2.5 rounded-xl border border-slate-100 shadow-sm group-hover:border-indigo-100 transition-colors min-w-0">
+                        <Mail size={14} className="text-indigo-400 shrink-0" />
+                        <span className="truncate font-medium">{teacher.email || 'No email provided'}</span>
                       </div>
-                    )}
+                      
+                      {teacher.phone && (
+                        <div className="flex items-center gap-2">
+                          <a 
+                            href={`tel:${teacher.phone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-100"
+                          >
+                            <Phone size={14} /> Call Now
+                          </a>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(teacher.phone || '');
+                              alert('Phone number copied!');
+                            }}
+                            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors border border-slate-200"
+                            title="Copy Phone"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setSelectedTeacher(teacher); }}
+                        className="text-indigo-600 font-black text-[10px] uppercase tracking-[0.2em] flex items-center hover:translate-x-1 transition-transform"
+                      >
+                        View Full Info <ArrowRight size={12} className="ml-2" />
+                      </button>
+                      <div className="h-10 w-10 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm border border-slate-100">
+                        <ArrowRight size={18} />
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -3306,16 +3473,10 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                           <span className="truncate font-medium">{profile.email}</span>
                         </div>
                       )}
-                      {profile.phone && (!profile.is_phone_private || isAdmin || currentUser?.id === profile.id) && (
+                      {profile.phone && (
                         <div className="flex items-center gap-2.5">
                           <Phone size={14} className="text-slate-400 shrink-0" />
                           <span className="font-medium">{profile.phone}</span>
-                        </div>
-                      )}
-                      {profile.phone && profile.is_phone_private && !isAdmin && currentUser?.id !== profile.id && (
-                        <div className="flex items-center gap-2.5">
-                          <Phone size={14} className="text-slate-400 shrink-0" />
-                          <span className="italic text-slate-400 font-medium">Private</span>
                         </div>
                       )}
                     </div>
@@ -3366,438 +3527,645 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
         {activeTab === 'admin' && isAdmin && (
           <motion.div 
             key="admin"
-            initial={{ opacity: 0, x: -20 }} 
-            animate={{ opacity: 1, x: 0 }} 
-            exit={{ opacity: 0, x: 20 }} 
-            transition={{ duration: 0.3 }}
-            className="max-w-5xl mx-auto space-y-8"
+            initial={{ opacity: 0, scale: 0.98 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, scale: 0.98 }} 
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="max-w-6xl mx-auto space-y-8 pb-20"
           >
-            <div className="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl premium-shadow flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Admin Dashboard</h2>
-                <p className="text-slate-500 mt-1">Manage users, view analytics, and export data.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={exportBatch}
-                  onChange={(e) => setExportBatch(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                >
-                  <option value="">All Univ. Batches</option>
-                  {uniqueBatches.map(batch => (
-                    <option key={batch} value={batch}>Univ. Batch {batch}</option>
-                  ))}
-                </select>
-                <select
-                  value={exportChemistryBatch}
-                  onChange={(e) => setExportChemistryBatch(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                >
-                  <option value="">All Chem. Batches</option>
-                  {uniqueChemistryBatches.map(batch => (
-                    <option key={batch} value={batch}>Chem. Batch {batch}</option>
-                  ))}
-                </select>
-                <button onClick={handleExportPDF} className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors flex items-center shadow-sm">
-                  <FileText size={16} className="mr-2" /> Export PDF
-                </button>
-                <button onClick={handleExportCSV} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center shadow-sm">
-                  <Database size={16} className="mr-2" /> Export CSV
-                </button>
-              </div>
-            </div>
-
-            {/* Analytics Dashboard */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl shadow-sm relative z-10">
-                  <Users size={32} />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Members</p>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.length}</h3>
-                </div>
-              </motion.div>
-              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm relative z-10">
-                  <GraduationCap size={32} />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Teachers</p>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{teachers.length}</h3>
-                </div>
-              </motion.div>
-              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm relative z-10">
-                  <MessageSquare size={32} />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Posts</p>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
-                </div>
-              </motion.div>
-              <motion.div className="glass-card p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] premium-shadow premium-hover border-slate-100 flex items-center space-x-4 sm:space-x-6 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl shadow-sm relative z-10">
-                  <BadgeCheck size={32} />
-                </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending Verifications</p>
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tighter">
-                    {profiles.filter(p => p.verification_status === 'pending').length}
-                  </h3>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Verification Requests */}
-            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center relative z-10">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-100">
-                    <Crown size={20} />
+            {/* Admin Header & Navigation */}
+            <div className="glass-card p-4 sm:p-6 rounded-[2.5rem] premium-shadow border-white/40 mb-10">
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                <div className="flex items-center space-x-4">
+                  <div className="h-14 w-14 bg-indigo-600 rounded-[1.2rem] flex items-center justify-center text-white shadow-xl shadow-indigo-200">
+                    <ShieldCheck size={28} />
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Verification Requests</h3>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">Admin Control</h2>
+                    <p className="text-slate-500 text-sm font-medium">Manage platform health & community directory</p>
+                  </div>
                 </div>
-                <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest border border-amber-200">
-                  {profiles.filter(p => p.verification_status === 'pending').length} Pending Review
-                </span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      <th className="px-8 py-4">User Identity</th>
-                      <th className="px-8 py-4">Academic Batch</th>
-                      <th className="px-8 py-4">Current Role</th>
-                      <th className="px-8 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {profiles.filter(p => p.verification_status === 'pending').map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-8 py-5">
-                          <div className="flex items-center space-x-4">
-                            <div className="relative">
-                              {p.avatar_url ? (
-                                <img src={p.avatar_url} alt="" className="w-12 h-12 rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform" />
-                              ) : (
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-400 font-black text-sm shadow-sm">
-                                  {p.name?.charAt(0) || '?'}
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <div className="text-sm font-black text-slate-900 tracking-tight">{p.name}</div>
-                              <div className="text-xs font-medium text-slate-400">{p.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-5 text-sm font-bold text-slate-600">{p.batch || '-'}</td>
-                        <td className="px-8 py-5 text-sm font-bold text-slate-600">{p.current_status || '-'}</td>
-                        <td className="px-8 py-5 text-sm text-right space-x-3">
-                          <button 
-                            onClick={() => setSelectedProfile(p)}
-                            className="bg-white text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
-                          >
-                            Details
-                          </button>
-                          <button 
-                            onClick={() => handleVerifyProfile(p.id, 'verified')}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
-                          >
-                            Approve
-                          </button>
-                          <button 
-                            onClick={() => handleVerifyProfile(p.id, 'rejected')}
-                            className="bg-white text-red-600 border border-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all shadow-sm"
-                          >
-                            Reject
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {profiles.filter(p => p.verification_status === 'pending').length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="px-8 py-20 text-center">
-                          <div className="h-16 w-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle className="text-slate-200" size={32} />
-                          </div>
-                          <p className="text-slate-400 font-bold text-sm">No pending verification requests at the moment.</p>
-                        </td>
-                      </tr>
+                
+                <nav className="flex flex-wrap items-center bg-slate-50/50 p-1.5 rounded-2xl border border-slate-100">
+                  <button 
+                    onClick={() => setAdminSubTab('overview')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${adminSubTab === 'overview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Overview
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('verifications')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center ${adminSubTab === 'verifications' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Verifications
+                    {profiles.filter(p => p.verification_status === 'pending').length > 0 && (
+                      <span className="ml-2 w-5 h-5 bg-rose-500 text-white flex items-center justify-center rounded-full text-[10px]">
+                        {profiles.filter(p => p.verification_status === 'pending').length}
+                      </span>
                     )}
-                  </tbody>
-                </table>
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('users')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${adminSubTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Users
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('moderation')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${adminSubTab === 'moderation' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Moderation
+                  </button>
+                  <button 
+                    onClick={() => setAdminSubTab('settings')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${adminSubTab === 'settings' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    Settings
+                  </button>
+                </nav>
               </div>
             </div>
 
-            {/* User Management Table */}
-            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 relative z-10">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Community Directory Management</h3>
-              </div>
-              <div className="overflow-x-auto relative z-10">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      <th className="px-8 py-4">Name</th>
-                      <th className="px-8 py-4">Email Address</th>
-                      <th className="px-8 py-4">Batch</th>
-                      <th className="px-8 py-4">System Role</th>
-                      <th className="px-8 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {profiles.map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="px-8 py-5">
-                          <div className="text-sm font-black text-slate-900 tracking-tight">{p.name}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            {p.verification_status === 'verified' && <BadgeCheck size={12} className="text-blue-500" />}
-                            <span className={`text-[9px] font-black uppercase tracking-tighter ${p.verification_status === 'verified' ? 'text-blue-600' : 'text-slate-400'}`}>
-                              {p.verification_status || 'none'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.email}</td>
-                        <td className="px-8 py-5 text-sm font-bold text-slate-500">{p.chemistry_batch || p.batch || '-'}</td>
-                        <td className="px-8 py-5 text-sm">
-                          <button 
-                            onClick={() => toggleUserRole(p.id, p.role || 'user')}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${
-                              p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com'
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm'
-                                : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100'
-                            }`}
-                          >
-                            <ShieldCheck size={12} />
-                            {p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com' ? 'Admin' : 'Member'}
-                          </button>
-                        </td>
-                        <td className="px-8 py-5 text-sm text-right space-x-3">
-                          {p.verification_status !== 'verified' && (
-                            <button onClick={() => handleVerifyProfile(p.id, 'verified')} className="text-emerald-600 hover:text-emerald-700 font-black text-[10px] uppercase tracking-widest">Approve</button>
-                          )}
-                          <button onClick={() => setSelectedProfile(p)} className="text-indigo-600 hover:text-indigo-800 font-black text-[10px] uppercase tracking-widest">View Profile</button>
-                          <button onClick={() => setUserToDelete({id: p.id, name: p.name})} className="text-red-500 hover:text-red-700 font-black text-[10px] uppercase tracking-widest">Remove</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mt-12">
-              {/* Add Admin */}
-              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="relative z-10">
-                  <div className="flex items-center space-x-4 mb-8">
-                    <div className="p-3 bg-slate-900 text-white rounded-2xl">
-                      <ShieldCheck size={24} />
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Elevate to Admin</h3>
-                  </div>
-                  <form onSubmit={handleAddAdmin} className="space-y-6">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">User Email Address</label>
-                      <input 
-                        required 
-                        type="email" 
-                        className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all font-bold text-slate-700" 
-                        placeholder="Enter registered email..."
-                        value={adminEmailToAdd} 
-                        onChange={e => setAdminEmailToAdd(e.target.value)} 
-                      />
-                      <p className="text-[10px] text-slate-400 font-bold mt-3 ml-1 uppercase tracking-tight">Note: User must already have an account.</p>
-                    </div>
-                    <button type="submit" disabled={isAddingAdmin} className="w-full bg-slate-900 text-white font-black py-4 px-6 rounded-2xl hover:bg-indigo-600 transition-all disabled:opacity-50 uppercase text-xs tracking-widest premium-button">
-                      {isAddingAdmin ? 'Processing...' : 'Grant Admin Privileges'}
-                    </button>
-                  </form>
-                </div>
-              </div>
-
-              {/* Bulk Upload Info */}
-              <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 flex flex-col relative overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-                <div className="relative z-10 flex-grow flex flex-col">
-                  <div className="flex items-center space-x-4 mb-8">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-                      <Database size={24} />
-                    </div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Bulk Operations</h3>
-                  </div>
-                  <div className="bg-slate-50/50 p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-100 text-sm text-slate-600 space-y-4 flex-grow">
-                    <p className="font-bold">To bulk upload members, use the Supabase Infrastructure:</p>
-                    <ul className="space-y-3">
-                      <li className="flex items-start">
-                        <div className="h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">1</div>
-                        <span className="font-medium">Access Supabase Dashboard</span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">2</div>
-                        <span className="font-medium">Authentication &gt; Users &gt; Import</span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="h-5 w-5 rounded-full bg-indigo-600 text-white text-[10px] font-black flex items-center justify-center mt-0.5 mr-3 shrink-0">3</div>
-                        <span className="font-medium">Upload CSV with required headers</span>
-                      </li>
-                    </ul>
-                    <div className="pt-4 border-t border-slate-100">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Security Protocol</p>
-                      <p className="text-xs font-medium mt-1">Direct bulk creation is restricted to infrastructure level for security.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Site Configuration (Hero Image) */}
-            <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 mt-8 sm:mt-12 relative overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="relative z-10">
-                <div className="flex items-center space-x-4 mb-8">
-                  <div className="p-3 bg-amber-500 text-white rounded-2xl">
-                    <Camera size={24} />
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Hero Image Management</h3>
-                </div>
-                
-                <div className="flex flex-col lg:flex-row gap-10 items-center">
-                  <div className="w-full lg:w-1/3">
-                    <div className="relative rounded-[2rem] overflow-hidden shadow-2xl aspect-video border-4 border-white bg-slate-100">
-                      <img src={heroImageUrl} alt="Current Hero" className="w-full h-full object-cover" />
-                      {isUploadingHero && (
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
-                          <Loader2 className="animate-spin text-white" size={32} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 space-y-4">
-                    <h4 className="text-lg font-black text-slate-800 tracking-tight">Customize Landing Page</h4>
-                    <p className="text-sm text-slate-500 font-medium leading-relaxed">
-                      This image appears in the welcome section for all users. Upload a professional image (Recommended 800x800px or larger).
-                    </p>
-                    <div className="pt-2">
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        className="hidden" 
-                        ref={heroFileInputRef} 
-                        onChange={handleHeroImageUpload} 
-                      />
-                      <button 
-                        onClick={() => heroFileInputRef.current?.click()}
-                        disabled={isUploadingHero}
-                        className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-indigo-600 transition-all shadow-xl disabled:opacity-50 flex items-center space-x-3"
-                      >
-                        <Camera size={18} />
-                        <span>{isUploadingHero ? 'Processing...' : 'Change Hero Image'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Site Configuration (Features) */}
-            <div className="glass-card p-6 sm:p-10 rounded-2xl sm:rounded-[3rem] premium-shadow border-slate-100 mt-8 sm:mt-12 relative overflow-hidden">
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="relative z-10">
-                <div className="flex items-center space-x-4 mb-8">
-                  <div className="p-3 bg-blue-500 text-white rounded-2xl">
-                    <LayoutGrid size={24} />
-                  </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Feature Management</h3>
-                </div>
-                
-                <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 sm:p-8">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                      <h4 className="text-lg font-black text-slate-800 tracking-tight">Enable Feed Posts</h4>
-                      <p className="text-sm text-slate-500 font-medium leading-relaxed mt-1">
-                        Turn this off to completely hide both the post creation option and all older posts from the 'Home' tab. The 'Home' tab itself and other sections on it will remain visible.
-                      </p>
-                    </div>
-                    
-                    <button
-                      onClick={async () => {
-                        const newState = !isFeedEnabled;
-                        setIsFeedEnabled(newState);
-                        
-                        const { error } = await supabase
-                          .from('site_config')
-                          .upsert({ key: 'is_feed_enabled', value: String(newState), updated_at: new Date().toISOString() });
-                          
-                        if (error) {
-                          console.error("Failed to update config", error);
-                          alert("Failed to update settings. Please try again.");
-                          setIsFeedEnabled(!newState); // revert
-                        }
-                      }}
-                      className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2 ${isFeedEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                      role="switch"
-                      aria-checked={isFeedEnabled}
-                    >
-                      <span className="sr-only">Enable posting</span>
-                      <span
-                        aria-hidden="true"
-                        className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isFeedEnabled ? 'translate-x-6' : 'translate-x-0'}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Admin User List */}
-            <div className="glass-card rounded-2xl sm:rounded-[2.5rem] premium-shadow overflow-hidden mt-8 sm:mt-12 border-slate-100 relative">
-              <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
-              <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 relative z-10">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Current Admins</h3>
-              </div>
-              <div className="divide-y divide-slate-100 relative z-10">
-                {profiles.filter(p => p.role === 'admin' || p.email === 'fllimonm1212@gmail.com' || p.email === 'chembondhon@gmail.com').map(admin => (
-                  <div key={admin.id} className="px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {admin.avatar_url ? (
-                        <img src={admin.avatar_url} alt="" className="w-10 h-10 rounded-full" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold">
-                          {admin.name?.charAt(0) || 'A'}
-                        </div>
-                      )}
+            <AnimatePresence mode="wait">
+              {adminSubTab === 'overview' && (
+                <motion.div 
+                  key="admin-overview"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-8"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="glass-card p-6 rounded-[2rem] border-white/40 shadow-xl shadow-slate-100 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl"><Users size={24} /></div>
+                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">Active</span>
+                      </div>
                       <div>
-                        <p className="font-medium text-slate-900 flex items-center">
-                          {admin.name}
-                          <UserBadges profile={admin} size={16} />
-                        </p>
-                        <p className="text-sm text-slate-500">{admin.email}</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Community Members</p>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.length}</h3>
                       </div>
                     </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-900 text-white">
-                      Super Admin
+                    
+                    <div className="glass-card p-6 rounded-[2rem] border-white/40 shadow-xl shadow-slate-100 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><GraduationCap size={24} /></div>
+                        <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">Faculty</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Teachers</p>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{teachers.length}</h3>
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-6 rounded-[2rem] border-white/40 shadow-xl shadow-slate-100 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><MessageSquare size={24} /></div>
+                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Realtime</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Engagement Posts</p>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{posts.length}</h3>
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-6 rounded-[2rem] border-white/40 shadow-xl shadow-slate-100 flex flex-col justify-between cursor-pointer hover:scale-105 transition-transform" onClick={() => setAdminSubTab('verifications')}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl"><BadgeCheck size={24} /></div>
+                        <span className="text-[10px] font-black text-rose-600 animate-pulse bg-rose-50 px-2 py-1 rounded-lg">Critical</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending Review</p>
+                        <h3 className="text-3xl font-black text-slate-900 tracking-tighter">{profiles.filter(p => p.verification_status === 'pending').length}</h3>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="glass-card p-8 rounded-[2.5rem] border-white/40 premium-shadow">
+                      <h4 className="text-lg font-black text-slate-900 mb-8 tracking-tight uppercase">Status Distribution</h4>
+                      <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={statusChartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                              {statusChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-8 rounded-[2.5rem] border-white/40 premium-shadow">
+                      <h4 className="text-lg font-black text-slate-900 mb-8 tracking-tight uppercase">Batch Analytics</h4>
+                      <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={batchChartData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700}} />
+                            <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700}} />
+                            <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                            <Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="glass-card p-8 rounded-[2.5rem] border-white/40 premium-shadow">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
+                      <div>
+                        <h4 className="text-xl font-black text-slate-900 tracking-tight uppercase">Community Intelligence</h4>
+                        <p className="text-sm text-slate-500 font-medium">Export directory data for administrative audits.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <select
+                          value={exportChemistryBatch}
+                          onChange={(e) => setExportChemistryBatch(e.target.value)}
+                          className="px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold"
+                        >
+                          <option value="">All Chemistry Batches</option>
+                          {uniqueChemistryBatches.map(batch => <option key={batch} value={batch}>Batch {batch}</option>)}
+                        </select>
+                        <button onClick={handleExportPDF} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-100 flex items-center">
+                          <FileText size={16} className="mr-2" /> Download PDF
+                        </button>
+                        <button onClick={handleExportCSV} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center">
+                          <Database size={16} className="mr-2" /> Download CSV
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {adminSubTab === 'verifications' && (
+                <motion.div 
+                  key="admin-verifications"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden border-white/40"
+                >
+                  <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="p-3 bg-rose-500 text-white rounded-2xl shadow-lg shadow-rose-100"><BadgeCheck size={24} /></div>
+                      <div>
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight">Identity Review</h3>
+                        <p className="text-sm text-slate-500 font-medium">Verify credentials for community access.</p>
+                      </div>
+                    </div>
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-6 py-2 rounded-full uppercase tracking-[0.2em] border border-rose-200">
+                      {profiles.filter(p => p.verification_status === 'pending').length} Requests Pending
                     </span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <th className="px-10 py-5">Applicant</th>
+                          <th className="px-10 py-5">Education</th>
+                          <th className="px-10 py-5">Current Role</th>
+                          <th className="px-10 py-5 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {profiles.filter(p => p.verification_status === 'pending').map(p => (
+                          <tr key={p.id} className="hover:bg-slate-50/80 transition-all group">
+                            <td className="px-10 py-6">
+                              <div className="flex items-center space-x-4">
+                                <div className="h-12 w-12 rounded-2xl overflow-hidden shadow-sm group-hover:scale-110 transition-transform">
+                                  {p.avatar_url ? (
+                                    <img src={p.avatar_url} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400 font-black text-sm">
+                                      {p.name?.charAt(0) || '?'}
+                                    </div>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-sm font-black text-slate-900 tracking-tight uppercase">{p.name}</div>
+                                  <div className="text-xs font-medium text-slate-400">{p.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-10 py-6">
+                              <span className="px-3 py-1 bg-white text-indigo-600 text-[10px] font-black uppercase tracking-widest rounded-lg border border-slate-100">
+                                Batch {p.chemistry_batch || p.batch || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="px-10 py-6">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{p.current_status || 'Member'}</span>
+                            </td>
+                            <td className="px-10 py-6 text-right">
+                              <div className="flex items-center justify-end space-x-2">
+                                <button onClick={() => setSelectedProfile(p)} className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-slate-100" title="Examine Profile"><Eye size={18} /></button>
+                                <button onClick={() => handleVerifyProfile(p.id, 'verified')} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-indigo-100">Approve</button>
+                                <button onClick={() => handleVerifyProfile(p.id, 'rejected')} className="px-5 py-2.5 bg-white text-rose-500 rounded-xl text-[10px] font-black uppercase tracking-widest border border-rose-100 hover:bg-rose-50 transition-all">Reject</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {profiles.filter(p => p.verification_status === 'pending').length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-10 py-32 text-center text-slate-400">
+                              <CheckCircle size={48} className="mx-auto mb-4 opacity-20" />
+                              <p className="font-black uppercase tracking-[0.3em] text-xs">Clear Workspace</p>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+
+              {adminSubTab === 'users' && (
+                <motion.div 
+                  key="admin-users"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-8"
+                >
+                  <div className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden border-white/40">
+                    <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">User Authority</h3>
+                      <div className="flex items-center bg-white p-2.5 rounded-2xl border border-slate-100 shadow-inner w-full md:w-80">
+                        <Search size={18} className="text-slate-400 ml-3 shrink-0" />
+                        <input 
+                          type="text" 
+                          placeholder="Fuzzy Search..." 
+                          className="bg-transparent border-none focus:ring-0 px-4 py-1.5 text-xs font-black text-slate-900 w-full uppercase tracking-widest"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="px-10 py-5">Identity</th>
+                            <th className="px-10 py-5">Privileges</th>
+                            <th className="px-10 py-5">Status</th>
+                            <th className="px-10 py-5 text-right">Moderation</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {profiles.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.email?.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 50).map(p => (
+                            <tr key={p.id} className="hover:bg-slate-50/50 transition-all group">
+                              <td className="px-10 py-6">
+                                <div className="text-sm font-black text-slate-900 tracking-tight uppercase">{p.name}</div>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{p.email}</div>
+                              </td>
+                              <td className="px-10 py-6">
+                                <button 
+                                  onClick={() => handleUpdateUserRole(p.id, p.role === 'admin' ? 'user' : 'admin')}
+                                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                    p.role === 'admin' ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-100 hover:bg-white hover:text-slate-600 hover:shadow-md'
+                                  }`}
+                                >
+                                  <ShieldCheck size={14} />
+                                  {p.role === 'admin' ? 'Admin' : 'Member'}
+                                </button>
+                              </td>
+                              <td className="px-10 py-6">
+                                <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                  p.verification_status === 'verified' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                                }`}>
+                                  {p.verification_status === 'verified' ? 'Verified' : 'Unverified'}
+                                </div>
+                              </td>
+                              <td className="px-10 py-6 text-right space-x-2">
+                                <button onClick={() => setSelectedProfile(p)} className="p-2.5 bg-white text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-slate-100 shadow-sm"><Eye size={18} /></button>
+                                <button onClick={() => { if(window.confirm(`Permanently delete ${p.name}?`)) handleDeleteUser(p.id); }} className="p-2.5 bg-white text-rose-300 hover:text-rose-600 rounded-xl transition-all border border-slate-100 shadow-sm"><Trash2 size={18} /></button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="glass-card p-10 rounded-[3rem] premium-shadow border-white/40">
+                      <div className="flex items-center space-x-4 mb-8">
+                        <div className="p-3 bg-slate-900 text-white rounded-2xl"><Crown size={24} /></div>
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Elevate Authority</h3>
+                      </div>
+                      <form onSubmit={handleAddAdmin} className="space-y-6">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">Registered Email Address</label>
+                          <input required type="email" value={adminEmailToAdd} onChange={e => setAdminEmailToAdd(e.target.value)} className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-indigo-600 focus:bg-white outline-none transition-all font-black text-slate-700 text-sm" placeholder="user@example.com" />
+                        </div>
+                        <button type="submit" disabled={isAddingAdmin} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-indigo-600 transition-all uppercase text-xs tracking-widest shadow-xl shadow-slate-200">
+                          {isAddingAdmin ? 'Syncing...' : 'Grant Admin Privileges'}
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="glass-card p-10 rounded-[3rem] premium-shadow border-white/40 bg-indigo-600 text-white flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center space-x-4 mb-6 text-white/90">
+                          <div className="p-3 bg-white/10 rounded-2xl"><Database size={24} /></div>
+                          <h3 className="text-xl font-black tracking-tight uppercase">Data Integrity</h3>
+                        </div>
+                        <p className="text-indigo-100 text-sm font-medium leading-relaxed">
+                          Platform database enforces strict RLS policies. Deletions are cascaded. Ensure you have backups before bulk removals.
+                        </p>
+                      </div>
+                      <div className="mt-8 p-4 bg-white/10 rounded-2xl border border-white/20">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Protocol Status</p>
+                        <div className="flex items-center space-x-2">
+                          <Activity size={14} className="text-emerald-400" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Systems Nominal</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {adminSubTab === 'moderation' && (
+                <motion.div 
+                  key="admin-moderation"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-8"
+                >
+                  <div className="glass-card rounded-[2.5rem] premium-shadow overflow-hidden border-white/40">
+                    <div className="px-10 py-8 border-b border-slate-50 bg-slate-50/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-100"><MessageSquare size={24} /></div>
+                        <div>
+                          <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Content Moderation</h3>
+                          <p className="text-sm text-slate-500 font-medium">Review and manage community feed posts.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50/50 border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="px-10 py-5">Author</th>
+                            <th className="px-10 py-5">Content Preview</th>
+                            <th className="px-10 py-5">Engagement</th>
+                            <th className="px-10 py-5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {posts.map(post => (
+                            <tr key={post.id} className="hover:bg-slate-50/50 transition-all group">
+                              <td className="px-10 py-6">
+                                <span className="text-sm font-black text-slate-900 uppercase tracking-tight">{post.author_name}</span>
+                                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                  {new Date(post.created_at).toLocaleDateString()}
+                                </div>
+                              </td>
+                              <td className="px-10 py-6 max-w-md">
+                                <p className="text-xs font-medium text-slate-600 truncate">{post.content}</p>
+                                {post.image_url && <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest mt-1 block">Has Attachment</span>}
+                              </td>
+                              <td className="px-10 py-6">
+                                <div className="flex items-center space-x-3 text-slate-400">
+                                  <div className="flex items-center space-x-1">
+                                    <Heart size={12} />
+                                    <span className="text-[10px] font-black">{post.likes_count || 0}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <MessageCircle size={12} />
+                                    <span className="text-[10px] font-black">{post.comments_count || 0}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-10 py-6 text-right">
+                                <button 
+                                  onClick={() => { if(window.confirm('Erase this post? This action cannot be undone.')) handleDeletePostAdmin(post.id); }} 
+                                  className="p-2.5 bg-white text-rose-300 hover:text-rose-600 rounded-xl transition-all border border-slate-100 shadow-sm"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {posts.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-10 py-20 text-center text-slate-400 font-black uppercase tracking-widest text-xs">
+                                No active discussions
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {adminSubTab === 'settings' && (
+                <motion.div 
+                  key="admin-settings"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="space-y-8"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="glass-card p-10 rounded-[3rem] premium-shadow border-white/40">
+                      <div className="flex items-center space-x-4 mb-10">
+                        <div className="p-4 bg-amber-500 text-white rounded-[1.3rem] shadow-xl shadow-amber-100"><Camera size={24} /></div>
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Culturescape</h3>
+                      </div>
+                      <div className="relative rounded-[2rem] overflow-hidden shadow-2xl aspect-video border-4 border-white bg-slate-50 group mb-6">
+                        <img src={heroImageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                          <button onClick={() => heroFileInputRef.current?.click()} className="bg-white text-slate-900 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl">Upload Asset</button>
+                        </div>
+                        {isUploadingHero && <div className="absolute inset-0 bg-white/60 backdrop-blur flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>}
+                      </div>
+                      <input type="file" accept="image/*" className="hidden" ref={heroFileInputRef} onChange={handleHeroImageUpload} />
+                      <p className="text-[10px] font-black text-slate-400 uppercase text-center tracking-[0.2em]">Global Hero Banner 16:9</p>
+                    </div>
+
+                    <div className="glass-card p-10 rounded-[3rem] premium-shadow border-white/40">
+                      <div className="flex items-center space-x-4 mb-10">
+                        <div className="p-4 bg-indigo-600 text-white rounded-[1.3rem] shadow-xl shadow-indigo-100"><LayoutGrid size={24} /></div>
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight uppercase">Power Core</h3>
+                      </div>
+                      <div className="space-y-6">
+                        <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 flex items-center justify-between hover:bg-white hover:shadow-xl transition-all group">
+                          <div>
+                            <h4 className="font-black text-slate-900 text-sm uppercase tracking-tight">Social News Feed</h4>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mt-1">Live interaction module</p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const newState = !isFeedEnabled; setIsFeedEnabled(newState);
+                              const { error } = await supabase.from('site_config').upsert({ key: 'is_feed_enabled', value: String(newState), updated_at: new Date().toISOString() });
+                              if (error) { setIsFeedEnabled(!newState); alert("Sync Error: Failed to update cloud state."); }
+                            }}
+                            className={`relative inline-flex h-8 w-14 rounded-full transition-all duration-300 ${isFeedEnabled ? 'bg-indigo-600 shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-slate-200'}`}
+                          >
+                            <span className={`inline-block h-6 w-6 mt-1 ml-1 rounded-full bg-white shadow transition-transform duration-300 ${isFeedEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+                        <div className="p-10 bg-indigo-50/50 rounded-[2.5rem] border border-indigo-100 border-dashed text-center">
+                          <Sparkles size={32} className="mx-auto text-indigo-400 mb-4 animate-pulse" />
+                          <h5 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-1">Intelligence Nodes</h5>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Auto-Moderation coming in update 2.5</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
         </AnimatePresence>
       </main>
 
       {/* FULL PROFILE MODAL */}
+      {/* FULL TEACHER MODAL */}
+      <AnimatePresence>
+        {selectedTeacher && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 sm:p-6"
+            onClick={() => setSelectedTeacher(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 40 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] shadow-2xl relative premium-shadow border border-slate-100"
+            >
+              <div className="sticky top-0 right-0 z-50 flex justify-end p-6 pointer-events-none mb-[-5rem]">
+                <button 
+                  onClick={() => setSelectedTeacher(null)}
+                  className="bg-slate-900/40 hover:bg-slate-900/60 text-white rounded-2xl p-3 transition-all backdrop-blur-md border border-white/20 shadow-xl pointer-events-auto"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex flex-col bg-white rounded-[3rem] overflow-hidden">
+                {/* Header background */}
+                <div className="h-40 sm:h-48 bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1d4ed8] relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
+                  <Atom className="absolute -right-10 -top-10 w-48 h-48 text-white opacity-5 rotate-12" />
+                </div>
+              
+                <div className="px-8 sm:px-12 pb-12 relative z-10">
+                  <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8">
+                    <div className="-mt-16 sm:-mt-20 relative">
+                      {selectedTeacher.avatar_url ? (
+                        <img src={selectedTeacher.avatar_url} alt={selectedTeacher.name} className="h-32 w-32 sm:h-40 sm:w-40 rounded-[2.5rem] border-[6px] border-white bg-white object-cover shadow-2xl" />
+                      ) : (
+                        <div className="h-32 w-32 sm:h-40 sm:w-40 rounded-[2.5rem] border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-5xl font-black shadow-2xl">
+                          {selectedTeacher.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight mb-2">
+                      {selectedTeacher.name}
+                    </h2>
+                    <div className="inline-flex items-center px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-black uppercase tracking-widest border border-indigo-100 mb-8 mt-2">
+                      <Briefcase size={16} className="mr-2" /> {selectedTeacher.designation}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedTeacher.email && (
+                        <div className="glass-card p-5 rounded-2xl border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                            <Mail size={12} className="mr-2" /> Official Email
+                          </p>
+                          <a href={`mailto:${selectedTeacher.email}`} className="text-slate-900 font-bold hover:text-indigo-600 truncate block">
+                            {selectedTeacher.email}
+                          </a>
+                        </div>
+                      )}
+                      
+                      <div className="glass-card p-5 rounded-2xl border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                          <Building2 size={12} className="mr-2" /> Department
+                        </p>
+                        <p className="text-slate-900 font-bold">
+                          {selectedTeacher.department}
+                        </p>
+                      </div>
+
+                      <div className="glass-card p-5 rounded-2xl border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                          <MapPin size={12} className="mr-2" /> Institution
+                        </p>
+                        <p className="text-slate-900 font-bold">
+                          {selectedTeacher.university}
+                        </p>
+                      </div>
+
+                      {selectedTeacher.phone && (
+                        <div className="glass-card p-5 rounded-2xl border-slate-100">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                            <Phone size={12} className="mr-2" /> Contact Number
+                          </p>
+                          <p className="text-slate-900 font-bold font-mono tracking-wider">
+                            {selectedTeacher.phone}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedTeacher.phone && (
+                      <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
+                        <a 
+                          href={`tel:${selectedTeacher.phone}`}
+                          className="flex-1 flex items-center justify-center h-14 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 premium-button"
+                        >
+                          <Phone size={18} className="mr-2" /> Call Now
+                        </a>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedTeacher.phone || '');
+                            alert('Phone number copied to clipboard!');
+                          }}
+                          className="flex-1 flex items-center justify-center h-14 bg-slate-100 text-slate-700 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
+                        >
+                          <Copy size={18} className="mr-2" /> Copy Number
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                      <Atom size={12} className="mr-2" /> Chemistry Faculty
+                    </div>
+                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                      Member since {new Date().getFullYear()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {selectedProfile && (
           <motion.div
@@ -3892,7 +4260,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       <Bookmark size={18} className={`mr-2 ${bookmarks.has(selectedProfile.id) ? 'fill-current' : ''}`} /> 
                       {bookmarks.has(selectedProfile.id) ? 'Saved' : 'Save'}
                     </button>
-                    {selectedProfile.phone && (!selectedProfile.is_phone_private || currentUser?.id === selectedProfile.id || isAdmin) && (
+                    {selectedProfile.phone && (
                       <div className="flex gap-2">
                         <a href={`tel:${selectedProfile.phone}`} className="flex items-center justify-center h-14 px-8 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-100 premium-button">
                           <Phone size={18} className="mr-2" /> Call Now
@@ -3904,11 +4272,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                         >
                           {copiedId === selectedProfile.id ? <Check size={18} className="text-indigo-600" /> : <Copy size={18} />}
                         </button>
-                      </div>
-                    )}
-                    {selectedProfile.phone && selectedProfile.is_phone_private && currentUser?.id !== selectedProfile.id && !isAdmin && (
-                      <div className="flex items-center justify-center h-14 px-6 rounded-2xl bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest border border-slate-200">
-                        <EyeOff size={16} className="mr-2" /> Phone Private
                       </div>
                     )}
                     {selectedProfile.email && (
