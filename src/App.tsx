@@ -4146,11 +4146,8 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     )}
                   </div>
 
-                  <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                      <Atom size={12} className="mr-2" /> Chemistry Faculty
-                    </div>
-                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                  <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-center">
+                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest text-center">
                       Member since {new Date().getFullYear()}
                     </div>
                   </div>
