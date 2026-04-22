@@ -3243,13 +3243,29 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
-                  className="glass-card flex flex-col rounded-[2.5rem] premium-shadow premium-hover overflow-hidden group cursor-pointer relative bg-white border border-slate-200/50"
+                  className="flex flex-col rounded-[2.5rem] premium-shadow premium-hover overflow-hidden group cursor-pointer relative bg-gradient-to-br from-[#f8d070] via-[#e2b04a] to-[#c18d2d] border border-white/40 shadow-xl"
                   onClick={() => setSelectedTeacher(teacher)}
                 >
-                  {/* Card Header Background */}
+                  {/* Premium Texture Overlay */}
+                  <div className="absolute inset-0 opacity-[0.08] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+                  
+                  {/* Animated Shimmer Effect */}
+                  <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 pointer-events-none"></div>
+
+                  {/* Card Header Background (Luxury Dark) */}
                   <div className="h-28 w-full bg-[#1e3a8a] relative overflow-hidden shrink-0">
-                    <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/30 to-blue-600/30"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a] to-[#1e40af]"></div>
+                    <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]"></div>
+                    
+                    {/* Chemistry Vibe Icons in Header */}
+                    <div className="absolute top-2 left-4 opacity-10 text-white rotate-12">
+                      <Beaker size={48} />
+                    </div>
+                    <div className="absolute bottom-[-10px] right-20 opacity-10 text-white -rotate-12">
+                      <FlaskConical size={64} />
+                    </div>
+                    
+                    <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-blue-400/20 blur-2xl rounded-full"></div>
                     
                     {isAdmin && (
                       <div className="absolute top-4 right-4 flex gap-2 z-20">
@@ -3260,8 +3276,8 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             setShowTeacherForm(true);
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
-                          className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white/90 hover:text-white hover:bg-white/20 transition-all border border-white/20 shadow-lg"
-                          title="Edit Teacher"
+                          className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white hover:bg-white/20 transition-all border border-white/20 shadow-lg"
+                          title="Edit"
                         >
                           <Edit size={16} />
                         </button>
@@ -3270,8 +3286,8 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             e.stopPropagation();
                             handleDeleteTeacher(teacher.id);
                           }}
-                          className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white/90 hover:text-rose-400 hover:bg-white/20 transition-all border border-white/20 shadow-lg"
-                          title="Delete Teacher"
+                          className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white hover:text-rose-400 hover:bg-white/20 transition-all border border-white/20 shadow-lg"
+                          title="Delete"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -3280,34 +3296,35 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   </div>
                   
                   <div className="px-6 pb-6 flex-1 flex flex-col relative z-10">
-                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
-                    
-                    {/* Floating Avatar */}
-                    <div className="-mt-14 mb-4 relative">
-                      {teacher.avatar_url ? (
-                        <img src={teacher.avatar_url} alt={teacher.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
-                      ) : (
-                        <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
-                          {teacher.name.charAt(0).toUpperCase()}
+                    {/* Glowing Avatar Ring */}
+                    <div className="-mt-14 mb-4 relative inline-block">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-amber-200 to-amber-600 rounded-[2rem] blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
+                      <div className="relative">
+                        {teacher.avatar_url ? (
+                          <img src={teacher.avatar_url} alt={teacher.name} className="h-28 w-28 rounded-3xl border-[6px] border-[#e2b04a] bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                        ) : (
+                          <div className="h-28 w-28 rounded-3xl border-[6px] border-[#e2b04a] bg-slate-900 text-amber-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
+                            {teacher.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 left-20">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500 border-4 border-[#e2b04a] shadow-sm"></div>
                         </div>
-                      )}
-                      <div className="absolute bottom-2 left-20">
-                        <div className="w-5 h-5 rounded-full bg-blue-500 border-4 border-white shadow-sm animate-pulse"></div>
                       </div>
                     </div>
 
-                    <h3 className="text-xl font-black text-slate-900 leading-tight group-hover:text-indigo-700 transition-colors tracking-tight truncate mb-1">
+                    <h3 className="text-xl font-black text-slate-900 leading-tight group-hover:text-black transition-colors tracking-tight truncate mb-1">
                       {teacher.name}
                     </h3>
                     
-                    <div className="text-sm font-bold text-indigo-700 mb-4 bg-indigo-50/50 px-3 py-1.5 rounded-lg border border-indigo-100/50 inline-block w-fit">
+                    <div className="text-[11px] font-black text-amber-700 mb-4 bg-white/40 px-3 py-1.5 rounded-lg border border-white/50 inline-block w-fit backdrop-blur-md shadow-sm uppercase tracking-wider">
                       {teacher.designation}
                     </div>
                     
                     <div className="space-y-2 mt-auto">
-                      <div className="flex items-center gap-3 text-[11px] text-slate-500 bg-slate-50/40 p-2.5 rounded-xl border border-slate-100 shadow-sm group-hover:border-indigo-100 transition-colors min-w-0">
-                        <Mail size={14} className="text-indigo-400 shrink-0" />
-                        <span className="truncate font-medium">{teacher.email || 'No email provided'}</span>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-800 bg-white/20 p-2.5 rounded-xl border border-white/30 shadow-sm group-hover:bg-white/30 transition-all min-w-0 backdrop-blur-sm">
+                        <Mail size={14} className="text-amber-800 shrink-0" />
+                        <span className="truncate font-bold italic">{teacher.email || 'No email provided'}</span>
                       </div>
                       
                       {teacher.phone && (
@@ -3315,9 +3332,9 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                           <a 
                             href={`tel:${teacher.phone}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-100"
+                            className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-black p-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95"
                           >
-                            <Phone size={14} /> Call Now
+                            <Phone size={14} className="text-amber-400" /> Call Direct
                           </a>
                           <button 
                             onClick={(e) => {
@@ -3325,23 +3342,23 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                               navigator.clipboard.writeText(teacher.phone || '');
                               alert('Phone number copied!');
                             }}
-                            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors border border-slate-200"
-                            title="Copy Phone"
+                            className="p-2.5 bg-white/40 hover:bg-white/60 text-amber-900 rounded-xl transition-all border border-white/50 backdrop-blur-md shadow-sm"
+                            title="Copy Number"
                           >
-                            <Copy size={14} />
+                            <Copy size={16} />
                           </button>
                         </div>
                       )}
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <div className="mt-5 pt-4 border-t border-white/30 flex items-center justify-between">
                       <button 
                         onClick={(e) => { e.stopPropagation(); setSelectedTeacher(teacher); }}
-                        className="text-indigo-600 font-black text-[10px] uppercase tracking-[0.2em] flex items-center hover:translate-x-1 transition-transform"
+                        className="text-slate-900 font-extrabold text-[10px] uppercase tracking-[0.2em] flex items-center group-hover:tracking-[0.25em] transition-all"
                       >
-                        View Full Info <ArrowRight size={12} className="ml-2" />
+                        View Dossier <ArrowRight size={12} className="ml-2 text-amber-800" />
                       </button>
-                      <div className="h-10 w-10 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm border border-slate-100">
+                      <div className="h-10 w-10 rounded-2xl bg-slate-900/10 text-slate-900 flex items-center justify-center group-hover:bg-slate-900 group-hover:text-amber-400 transition-all shadow-inner border border-white/20">
                         <ArrowRight size={18} />
                       </div>
                     </div>
@@ -4042,33 +4059,45 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 40 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] shadow-2xl relative premium-shadow border border-slate-100"
+              className="bg-gradient-to-br from-[#f8d070] via-[#e2b04a] to-[#c18d2d] w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] shadow-2xl relative border border-white/40"
             >
               <div className="sticky top-0 right-0 z-50 flex justify-end p-6 pointer-events-none mb-[-5rem]">
                 <button 
                   onClick={() => setSelectedTeacher(null)}
-                  className="bg-slate-900/40 hover:bg-slate-900/60 text-white rounded-2xl p-3 transition-all backdrop-blur-md border border-white/20 shadow-xl pointer-events-auto"
+                  className="bg-slate-900/60 hover:bg-slate-900 text-white rounded-2xl p-3 transition-all backdrop-blur-md border border-white/20 shadow-xl pointer-events-auto"
                 >
                   <X size={24} />
                 </button>
               </div>
 
-              <div className="flex flex-col bg-white rounded-[3rem] overflow-hidden">
+              <div className="flex flex-col overflow-hidden relative">
+                {/* Premium Texture Overlay */}
+                <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
+
                 {/* Header background */}
-                <div className="h-40 sm:h-48 bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#1d4ed8] relative overflow-hidden shrink-0">
-                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
-                  <Atom className="absolute -right-10 -top-10 w-48 h-48 text-white opacity-5 rotate-12" />
+                <div className="h-40 sm:h-48 bg-[#1e3a8a] relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#2563eb]"></div>
+                  
+                  {/* Chemistry Vibe Icons in Modal Header */}
+                  <div className="absolute top-4 left-10 opacity-10 text-white rotate-12">
+                    <Beaker size={80} />
+                  </div>
+                  <div className="absolute bottom-4 right-20 opacity-10 text-white -rotate-12">
+                    <FlaskConical size={100} />
+                  </div>
+                  
+                  <Atom className="absolute -right-10 -top-10 w-48 h-48 text-white opacity-10 rotate-12" />
                 </div>
               
                 <div className="px-8 sm:px-12 pb-12 relative z-10">
-                  <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
-                  
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8">
                     <div className="-mt-16 sm:-mt-20 relative">
+                      <div className="absolute -inset-1.5 bg-gradient-to-r from-amber-200 to-amber-600 rounded-[3rem] blur opacity-50"></div>
                       {selectedTeacher.avatar_url ? (
-                        <img src={selectedTeacher.avatar_url} alt={selectedTeacher.name} className="h-32 w-32 sm:h-40 sm:w-40 rounded-[2.5rem] border-[6px] border-white bg-white object-cover shadow-2xl" />
+                        <img src={selectedTeacher.avatar_url} alt={selectedTeacher.name} className="h-32 w-32 sm:h-40 sm:w-40 rounded-[2.5rem] border-[6px] border-[#e2b04a] bg-white object-cover shadow-2xl relative" />
                       ) : (
-                        <div className="h-32 w-32 sm:h-40 sm:w-40 rounded-[2.5rem] border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-5xl font-black shadow-2xl">
+                        <div className="h-32 w-32 sm:h-40 sm:w-40 rounded-[2.5rem] border-[6px] border-[#e2b04a] bg-slate-900 text-amber-400 flex items-center justify-center text-5xl font-black shadow-2xl relative">
                           {selectedTeacher.name.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -4079,24 +4108,24 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight mb-2">
                       {selectedTeacher.name}
                     </h2>
-                    <div className="inline-flex items-center px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-black uppercase tracking-widest border border-indigo-100 mb-8 mt-2">
+                    <div className="inline-flex items-center px-4 py-1.5 bg-white/40 text-amber-900 rounded-xl text-sm font-black uppercase tracking-widest border border-white/40 mb-8 mt-2 backdrop-blur-md shadow-sm">
                       <Briefcase size={16} className="mr-2" /> {selectedTeacher.designation}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {selectedTeacher.email && (
-                        <div className="glass-card p-5 rounded-2xl border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                        <div className="bg-white/30 backdrop-blur-md p-5 rounded-2xl border border-white/40 shadow-sm transition-all hover:bg-white/40">
+                          <p className="text-[10px] font-black text-amber-900/60 uppercase tracking-widest mb-3 flex items-center">
                             <Mail size={12} className="mr-2" /> Official Email
                           </p>
-                          <a href={`mailto:${selectedTeacher.email}`} className="text-slate-900 font-bold hover:text-indigo-600 truncate block">
+                          <a href={`mailto:${selectedTeacher.email}`} className="text-slate-900 font-bold hover:text-black truncate block italic underline decoration-amber-500/30">
                             {selectedTeacher.email}
                           </a>
                         </div>
                       )}
                       
-                      <div className="glass-card p-5 rounded-2xl border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                      <div className="bg-white/30 backdrop-blur-md p-5 rounded-2xl border border-white/40 shadow-sm transition-all hover:bg-white/40">
+                        <p className="text-[10px] font-black text-amber-900/60 uppercase tracking-widest mb-3 flex items-center">
                           <Building2 size={12} className="mr-2" /> Department
                         </p>
                         <p className="text-slate-900 font-bold">
@@ -4104,8 +4133,8 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                         </p>
                       </div>
 
-                      <div className="glass-card p-5 rounded-2xl border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                      <div className="bg-white/30 backdrop-blur-md p-5 rounded-2xl border border-white/40 shadow-sm transition-all hover:bg-white/40">
+                        <p className="text-[10px] font-black text-amber-900/60 uppercase tracking-widest mb-3 flex items-center">
                           <MapPin size={12} className="mr-2" /> Institution
                         </p>
                         <p className="text-slate-900 font-bold">
@@ -4114,8 +4143,8 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       </div>
 
                       {selectedTeacher.phone && (
-                        <div className="glass-card p-5 rounded-2xl border-slate-100">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center">
+                        <div className="bg-white/30 backdrop-blur-md p-5 rounded-2xl border border-white/40 shadow-sm transition-all hover:bg-white/40">
+                          <p className="text-[10px] font-black text-amber-900/60 uppercase tracking-widest mb-3 flex items-center">
                             <Phone size={12} className="mr-2" /> Contact Number
                           </p>
                           <p className="text-slate-900 font-bold font-mono tracking-wider">
@@ -4126,19 +4155,19 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     </div>
 
                     {selectedTeacher.phone && (
-                      <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col sm:flex-row gap-4">
+                      <div className="mt-8 pt-8 border-t border-white/30 flex flex-col sm:flex-row gap-4">
                         <a 
                           href={`tel:${selectedTeacher.phone}`}
-                          className="flex-1 flex items-center justify-center h-14 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 premium-button"
+                          className="flex-1 flex items-center justify-center h-14 bg-slate-950 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95"
                         >
-                          <Phone size={18} className="mr-2" /> Call Now
+                          <Phone size={18} className="mr-2 text-amber-400" /> Call Direct
                         </a>
                         <button 
                           onClick={() => {
                             navigator.clipboard.writeText(selectedTeacher.phone || '');
                             alert('Phone number copied to clipboard!');
                           }}
-                          className="flex-1 flex items-center justify-center h-14 bg-slate-100 text-slate-700 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
+                          className="flex-1 flex items-center justify-center h-14 bg-white/40 text-amber-900 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-white/60 transition-all border border-white/40 backdrop-blur-md shadow-sm"
                         >
                           <Copy size={18} className="mr-2" /> Copy Number
                         </button>
@@ -4146,9 +4175,9 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     )}
                   </div>
 
-                  <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-center">
-                    <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest text-center">
-                      Member since {new Date().getFullYear()}
+                  <div className="mt-10 pt-8 border-t border-white/30 flex items-center justify-center">
+                    <div className="text-slate-900/40 text-[10px] font-black uppercase tracking-widest text-center">
+                      Verified Member • Active Since {new Date().getFullYear()}
                     </div>
                   </div>
                 </div>
