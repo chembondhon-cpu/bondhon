@@ -105,16 +105,14 @@ const MoleculeBackground = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const elementCount = isMobile ? 12 : 25;
+  const elementCount = isMobile ? 8 : 20;
   const icons = [Atom, Hexagon, FlaskConical, TestTube, TestTubes, Microscope, Dna, Pipette, Beaker];
 
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-gradient-to-b from-[#1e3a8a] via-[#4f46e5] to-[#fcd34d]">
-      {/* Dynamic Gradient Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-500/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '10s'}}></div>
-      <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-indigo-300/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '12s', animationDelay: '2s'}}></div>
-      <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full bg-yellow-300/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '14s', animationDelay: '4s'}}></div>
-      <div className="absolute top-[40%] left-[40%] w-[30vw] h-[30vw] rounded-full bg-indigo-400/30 blur-[100px] mix-blend-overlay animate-pulse" style={{animationDuration: '11s', animationDelay: '1s'}}></div>
+      {/* Dynamic Gradient Orbs - Simplified for performance */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-500/20 blur-[100px] mix-blend-overlay animate-pulse will-change-[opacity,transform]" style={{animationDuration: '12s'}}></div>
+      <div className="absolute bottom-[-20%] left-[20%] w-[60vw] h-[60vw] rounded-full bg-yellow-300/20 blur-[100px] mix-blend-overlay animate-pulse will-change-[opacity,transform]" style={{animationDuration: '16s', animationDelay: '4s'}}></div>
       
       {/* Hexagon Pattern Watermark */}
       <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
@@ -122,8 +120,7 @@ const MoleculeBackground = () => {
       {/* Floating Chemistry Elements */}
       {[...Array(elementCount)].map((_, i) => {
         const Icon = icons[i % icons.length];
-        const colors = ['text-white/20', 'text-indigo-100/20', 'text-yellow-100/20', 'text-blue-100/20'];
-        const color = colors[i % colors.length];
+        const color = i % 2 === 0 ? 'text-white/10' : 'text-amber-100/10';
         
         return (
           <motion.div
@@ -131,22 +128,24 @@ const MoleculeBackground = () => {
             initial={{ 
               x: Math.random() * 100 + "vw", 
               y: Math.random() * 100 + "vh",
-              scale: Math.random() * 1.5 + 0.5,
-              rotate: Math.random() * 360
+              scale: Math.random() * 1.2 + 0.5,
+              rotate: Math.random() * 360,
+              opacity: 0
             }}
             animate={{ 
               x: [Math.random() * 100 + "vw", Math.random() * 100 + "vw"],
               y: [Math.random() * 100 + "vh", Math.random() * 100 + "vh"],
-              rotate: [Math.random() * 360, Math.random() * 360 + 360]
+              rotate: [Math.random() * 360, Math.random() * 360 + 360],
+              opacity: [0, 1, 0]
             }}
             transition={{ 
-              duration: 40 + Math.random() * 60, 
+              duration: 50 + Math.random() * 50, 
               repeat: Infinity, 
               ease: "linear" 
             }}
-            className={`absolute ${color}`}
+            className={`absolute ${color} will-change-transform`}
           >
-            <Icon size={isMobile ? 40 : 80} />
+            <Icon size={isMobile ? 32 : 64} strokeWidth={1} />
           </motion.div>
         );
       })}
@@ -923,6 +922,20 @@ export default function App() {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
+
+    // Enhanced Security: Input Validation
+    if ((formData.name?.length || 0) > 100) {
+      alert("Name must be under 100 characters for security reasons.");
+      return;
+    }
+    if ((formData.bio?.length || 0) > 1000) {
+      alert("Bio must be under 1000 characters.");
+      return;
+    }
+    if (formData.phone && !/^\+?[0-9\s-]{8,20}$/.test(formData.phone)) {
+      alert("Please provide a valid phone number format.");
+      return;
+    }
 
     const profileData = {
       id: currentUser.id,
@@ -2449,7 +2462,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                               <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none -z-10"></div>
                               <div className="-mt-16 mb-4 relative">
                                 {profile.avatar_url ? (
-                                  <img src={profile.avatar_url} alt={profile.name} className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                                  <img src={profile.avatar_url} alt={profile.name} loading="lazy" className="h-28 w-28 rounded-3xl border-[6px] border-white bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
                                 ) : (
                                   <div className="h-28 w-28 rounded-3xl border-[6px] border-white bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
                                     {profile.name?.charAt(0).toUpperCase()}
@@ -2820,15 +2833,21 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
                               <div className="flex items-center truncate">
                                 <Phone size={16} className="text-indigo-600 mr-3" />
-                                <span className="text-xs font-bold text-slate-700 truncate">{formData.phone}</span>
+                                <span className="text-xs font-bold text-slate-700 truncate">
+                                  {formData.is_phone_private && currentUser?.id !== formData.id && profile?.role !== 'admin' 
+                                    ? formData.phone.replace(/(\d{3})\d+(\d{2})/, "$1******$2") 
+                                    : formData.phone}
+                                </span>
                               </div>
-                              <button 
-                                onClick={() => handleCopy(formData.phone!, 'profile-phone')}
-                                className="p-1.5 hover:bg-slate-200 rounded-lg transition-all text-slate-400 hover:text-indigo-600"
-                                title="Copy Number"
-                              >
-                                {copiedId === 'profile-phone' ? <Check size={14} /> : <Copy size={14} />}
-                              </button>
+                              {(!formData.is_phone_private || currentUser?.id === formData.id || profile?.role === 'admin') && (
+                                <button 
+                                  onClick={() => handleCopy(formData.phone!, 'profile-phone')}
+                                  className="p-1.5 hover:bg-slate-200 rounded-lg transition-all text-slate-400 hover:text-indigo-600"
+                                  title="Copy Number"
+                                >
+                                  {copiedId === 'profile-phone' ? <Check size={14} /> : <Copy size={14} />}
+                                </button>
+                              )}
                             </div>
                           )}
                           {formData.social_links?.facebook && (
@@ -3272,9 +3291,9 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   {/* Animated Shimmer Effect */}
                   <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 pointer-events-none"></div>
 
-                  {/* Card Header Background (Luxury Deep Blue) */}
-                  <div className="h-28 w-full bg-[#1e3a8a] relative overflow-hidden shrink-0">
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a] to-[#1e40af]"></div>
+                  {/* Card Header Background (Luxury Golden) */}
+                  <div className="h-28 w-full bg-[#855d14] relative overflow-hidden shrink-0">
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#926b20] to-[#6a4e12]"></div>
                     <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]"></div>
                     
                     {/* Chemistry Vibe Icons in Header */}
@@ -3285,7 +3304,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       <FlaskConical size={64} />
                     </div>
                     
-                    <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-blue-400/20 blur-2xl rounded-full"></div>
+                    <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-amber-400/20 blur-2xl rounded-full"></div>
                     
                     {isAdmin && (
                       <div className="absolute top-4 right-4 flex gap-2 z-20">
@@ -3319,7 +3338,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       <div className="absolute -inset-1 bg-gradient-to-r from-amber-200 to-amber-600 rounded-[2rem] blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
                       <div className="relative">
                         {teacher.avatar_url ? (
-                          <img src={teacher.avatar_url} alt={teacher.name} className="h-28 w-28 rounded-3xl border-[6px] border-[#e2b04a] bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
+                          <img src={teacher.avatar_url} alt={teacher.name} loading="lazy" className="h-28 w-28 rounded-3xl border-[6px] border-[#e2b04a] bg-white object-cover shadow-xl group-hover:scale-105 transition-transform duration-500" />
                         ) : (
                           <div className="h-28 w-28 rounded-3xl border-[6px] border-[#e2b04a] bg-slate-900 text-amber-400 flex items-center justify-center text-4xl font-black shadow-xl group-hover:scale-105 transition-transform duration-500">
                             {teacher.name.charAt(0).toUpperCase()}
@@ -3505,7 +3524,11 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                       {profile.phone && (
                         <div className="flex items-center gap-2.5">
                           <Phone size={14} className="text-slate-400 shrink-0" />
-                          <span className="font-medium">{profile.phone}</span>
+                          <span className="font-medium">
+                            {profile.is_phone_private && currentUser?.id !== profile.id && currentUser?.email !== 'fllimonm1212@gmail.com' && currentUser?.email !== 'chembondhon@gmail.com'
+                              ? profile.phone.replace(/(\d{3})\d+(\d{2})/, "$1******$2") 
+                              : profile.phone}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -4091,10 +4114,10 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                 {/* Premium Texture Overlay */}
                 <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] pointer-events-none"></div>
 
-                {/* Header background */}
-                <div className="h-40 sm:h-48 bg-[#1e3a8a] relative overflow-hidden shrink-0">
+                {/* Header background (Luxury Golden) */}
+                <div className="h-40 sm:h-48 bg-[#855d14] relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]"></div>
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#2563eb]"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#926b20] via-[#855d14] to-[#6a4e12]"></div>
                   
                   {/* Chemistry Vibe Icons in Modal Header */}
                   <div className="absolute top-4 left-10 opacity-10 text-white rotate-12">

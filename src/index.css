@@ -15,12 +15,26 @@
 
 @layer base {
   body {
-    @apply bg-transparent text-slate-900 antialiased selection:bg-indigo-200 selection:text-indigo-900;
+    @apply bg-transparent text-slate-900 antialiased selection:bg-indigo-200 selection:text-indigo-900 overflow-x-hidden;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
   }
   
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight;
   }
+}
+
+/* Smooth scrolling for mobile */
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* GPU acceleration for animations */
+.gpu-accel {
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 .glass-card {
