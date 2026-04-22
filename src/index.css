@@ -5,6 +5,12 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --animate-spin-slow: spin 8s linear infinite;
+  --animate-shimmer-border: shimmer-border 4s linear infinite;
+}
+
+@keyframes shimmer-border {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
 @layer base {

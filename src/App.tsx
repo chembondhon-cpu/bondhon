@@ -2197,20 +2197,14 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  className="relative p-10 rounded-[3rem] bg-white/60 backdrop-blur-2xl border border-white/80 shadow-[0_20px_50px_rgba(79,70,229,0.1)] items-center justify-center flex flex-col text-center max-w-sm w-full group overflow-hidden"
+                  className="relative p-12 rounded-[4rem] bg-white/70 backdrop-blur-3xl border border-white/80 shadow-[0_30px_70px_rgba(79,70,229,0.15)] items-center justify-center flex flex-col text-center max-w-md w-full group overflow-hidden"
                 >
-                  {/* Animated Pulsing Border Glow */}
-                  <div className="absolute inset-x-0 inset-y-0 rounded-[3rem] border-2 border-indigo-500/20 animate-[pulse_3s_infinite] pointer-events-none"></div>
+                  {/* Premium Border Shimmer */}
+                  <div className="absolute inset-0 rounded-[4rem] border-2 border-transparent bg-gradient-to-r from-indigo-500/20 via-blue-500/0 to-indigo-500/20 bg-[length:200%_100%] animate-shimmer-border pointer-events-none"></div>
                   
-                  {/* Dynamic Moving Lights */}
-                  <motion.div 
-                    animate={{ 
-                      opacity: [0.1, 0.3, 0.1],
-                      scale: [1, 1.2, 1],
-                    }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 blur-[60px] pointer-events-none"
-                  ></motion.div>
+                  {/* Ambient Glows */}
+                  <div className="absolute -top-20 -left-20 w-64 h-64 bg-indigo-200/30 blur-[80px] rounded-full pointer-events-none"></div>
+                  <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-blue-200/30 blur-[80px] rounded-full pointer-events-none"></div>
                   
                   <div className="relative z-10 space-y-5">
                     <div className="flex items-center justify-center gap-4">
@@ -2236,28 +2230,25 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                           }
                         }
                       }}
-                      className="block relative"
+                      className="block relative group/name"
                     >
-                      <h2 className="text-3xl font-black text-slate-900 tracking-tighter transition-all group-hover:text-indigo-600 drop-shadow-sm">
+                      <h2 className="text-4xl font-[900] bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 bg-clip-text text-transparent tracking-tighter transition-all group-hover/name:from-indigo-600 group-hover/name:to-blue-600 drop-shadow-sm pb-1">
                         Fakhrul Islam Limon
                       </h2>
-                      <div className="mt-2 h-1.5 w-1/2 bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-500 group-hover:w-full transition-all duration-1000 rounded-full mx-auto shadow-sm"></div>
+                      <div className="mt-1 h-1.5 w-2/3 bg-gradient-to-r from-transparent via-amber-400 to-transparent group-hover/name:via-indigo-500 transition-all duration-700 rounded-full mx-auto opacity-70"></div>
                     </motion.button>
-
-                    <div className="flex items-center justify-center gap-4 pt-3">
-                      <div className="flex items-center gap-2 text-[10px] font-black text-white bg-indigo-600 px-4 py-1.5 rounded-2xl uppercase tracking-widest shadow-lg shadow-indigo-200 border border-indigo-400 group-hover:scale-110 transition-all cursor-default">
-                        <Sparkles size={12} className="animate-spin-slow" />
-                        Full Stack Engineer
-                      </div>
-                    </div>
 
                     <div className="pt-8 flex flex-col items-center gap-3">
                        <div className="flex items-center gap-2">
-                         <Heart size={14} className="text-rose-500 fill-rose-500 animate-pulse" />
-                         <span className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Chemistry Networking HQ</span>
+                         <motion.div
+                           animate={{ scale: [1, 1.2, 1] }}
+                           transition={{ duration: 2, repeat: Infinity }}
+                         >
+                           <Heart size={16} className="text-rose-500 fill-rose-500" />
+                         </motion.div>
                        </div>
-                       <div className="h-0.5 w-12 bg-slate-100 rounded-full"></div>
-                       <p className="text-[8px] font-bold text-slate-300 uppercase tracking-[0.3em]">Crafted with Precision • 2024</p>
+                       <div className="h-px w-24 bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+                       <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-[0.4em]">Designed & Developed with Passion • 2024</p>
                     </div>
                   </div>
                 </motion.div>
@@ -3252,7 +3243,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   {/* Animated Shimmer Effect */}
                   <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 pointer-events-none"></div>
 
-                  {/* Card Header Background (Luxury Dark) */}
+                  {/* Card Header Background (Luxury Deep Blue) */}
                   <div className="h-28 w-full bg-[#1e3a8a] relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a] to-[#1e40af]"></div>
                     <div className="absolute inset-0 opacity-[0.1] bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]"></div>
@@ -3277,7 +3268,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                           }}
                           className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white hover:bg-white/20 transition-all border border-white/20 shadow-lg"
-                          title="Edit"
                         >
                           <Edit size={16} />
                         </button>
@@ -3287,7 +3277,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                             handleDeleteTeacher(teacher.id);
                           }}
                           className="bg-white/10 backdrop-blur-md p-2.5 rounded-xl text-white hover:text-rose-400 hover:bg-white/20 transition-all border border-white/20 shadow-lg"
-                          title="Delete"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -3343,7 +3332,6 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                               alert('Phone number copied!');
                             }}
                             className="p-2.5 bg-white/40 hover:bg-white/60 text-amber-900 rounded-xl transition-all border border-white/50 backdrop-blur-md shadow-sm"
-                            title="Copy Number"
                           >
                             <Copy size={16} />
                           </button>
