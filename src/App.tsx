@@ -1968,14 +1968,12 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     />
                   </div>
                 </div>
-              </div>
-
-              {/* Quick Navigation Cards */}
+                    {/* Quick Navigation Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { label: 'Total Students & Alumni', count: profiles.length, icon: Users, color: 'indigo', action: () => setActiveTab('directory') },
-                  { label: 'Teachers', count: teachers.length, icon: Calendar, color: 'blue', action: () => setActiveTab('teachers') },
-                  { label: 'Saved Contacts', count: bookmarks.size, icon: Bookmark, color: 'slate', action: () => setActiveTab('saved') }
+                  { label: 'Total Students & Alumni', count: profiles.length, icon: Users, accent: 'bg-indigo-500/20 text-blue-200 border-indigo-400/30', action: () => setActiveTab('directory') },
+                  { label: 'Teachers', count: teachers.length, icon: Calendar, accent: 'bg-amber-500/20 text-amber-200 border-amber-400/30', action: () => setActiveTab('teachers') },
+                  { label: 'Saved Contacts', count: bookmarks.size, icon: Bookmark, accent: 'bg-blue-500/20 text-blue-100 border-blue-400/30', action: () => setActiveTab('saved') }
                 ].map((stat, idx) => (
                   <motion.div
                     key={stat.label}
@@ -1983,44 +1981,75 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 * idx }}
                     onClick={stat.action}
-                    className="glass-card p-8 rounded-[2rem] premium-shadow premium-hover cursor-pointer relative overflow-hidden group"
+                    className="relative group p-8 rounded-[2.5rem] overflow-hidden cursor-pointer"
                   >
-                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')] group-hover:scale-110 transition-transform duration-1000"></div>
-                    <div className={`p-4 bg-${stat.color}-50 text-${stat.color}-600 rounded-2xl w-fit mb-6 shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all`}>
-                      <stat.icon size={28} />
+                    {/* Premium Dark Sapphire Card Background */}
+                    <div className="absolute inset-0 bg-[#0f172a] border border-white/10 group-hover:border-indigo-500/50 transition-all duration-500"></div>
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a]/20 to-transparent"></div>
+                    
+                    {/* Chemistry Vibe Grid Overlay */}
+                    <div className="absolute inset-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/graphy.png')] group-hover:scale-110 transition-transform duration-[2s]"></div>
+
+                    <div className="relative z-10">
+                      <div className={`p-4 ${stat.accent} backdrop-blur-md rounded-2xl w-fit mb-6 shadow-xl border group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+                        <stat.icon size={28} />
+                      </div>
+                      <div>
+                        <h4 className="text-[11px] font-black text-indigo-400/60 uppercase tracking-[0.3em] mb-2">{stat.label}</h4>
+                        <div className="flex items-end gap-2 text-white">
+                          <p className="text-5xl font-black tracking-tighter drop-shadow-md">{stat.count}</p>
+                          <span className="text-indigo-400 font-bold mb-1 opacity-40">+</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{stat.label}</h4>
-                      <p className="text-4xl font-black text-slate-900 tracking-tighter">{stat.count}</p>
-                    </div>
+
+                    {/* Hover Decoration */}
                     <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                      <ArrowRight className={`text-${stat.color}-400`} size={24} />
+                      <div className="h-10 w-10 rounded-xl bg-indigo-500/20 border border-indigo-400/50 flex items-center justify-center">
+                        <ArrowRight className="text-white" size={20} />
+                      </div>
                     </div>
                   </motion.div>
                 ))}
               </div>
 
-              {/* Announcement Banner */}
-              <div className="glass-card p-6 sm:p-10 rounded-[2.5rem] premium-shadow border-slate-100 relative overflow-hidden bg-white">
-                <div className="absolute inset-0 opacity-[0.02] bg-[url('https://www.transparenttextures.com/patterns/hexellence.png')]"></div>
-                <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-                  <div className="p-5 bg-amber-50 rounded-3xl text-amber-600 shadow-sm">
-                    <ShieldCheck size={40} />
+              {/* Announcement Banner (Sapphire & Gold) */}
+              <div className="relative p-8 sm:p-12 rounded-[2.5rem] overflow-hidden premium-shadow group">
+                <div className="absolute inset-0 bg-[#0f172a] border border-white/10"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-[#1e3a8a] via-transparent to-[#1e3a8a] opacity-40"></div>
+                
+                {/* Graphics Overlay */}
+                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/graphy.png')]"></div>
+                <div className="absolute -left-20 -top-20 w-80 h-80 bg-indigo-600/20 blur-[100px] rounded-full"></div>
+                <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-amber-600/10 blur-[100px] rounded-full"></div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
+                  <div className="relative">
+                    <div className="absolute -inset-4 bg-amber-500/20 blur-2xl rounded-full animate-pulse"></div>
+                    <div className="relative p-7 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-[2.5rem] text-white shadow-2xl shadow-amber-900/20 border border-amber-300/40 transform -rotate-3 group-hover:rotate-0 transition-transform duration-700">
+                      <ShieldCheck size={48} className="drop-shadow-lg" />
+                    </div>
                   </div>
-                  <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2 uppercase italic">Verified Network</h3>
-                    <p className="text-slate-600 font-medium leading-relaxed max-w-2xl">
-                      Welcome to the official student and alumni platform for RU Chemistry students. Our goal is to create a secure space for all past and present students to connect and support each other.
+                  <div className="flex-1 text-center md:text-left space-y-3">
+                    <div className="flex items-center justify-center md:justify-start gap-4">
+                      <div className="h-px w-8 bg-amber-500/50"></div>
+                      <h3 className="text-2xl font-black text-white tracking-widest uppercase italic bg-gradient-to-r from-amber-200 to-white bg-clip-text text-transparent">Verified Network</h3>
+                      <div className="h-px w-8 bg-amber-500/50"></div>
+                    </div>
+                    <p className="text-indigo-100/70 font-medium leading-relaxed max-w-2xl text-lg">
+                      Welcome to the official student and alumni platform for RU Chemistry students. Join a secure circle designed for lasting connections and support.
                     </p>
                   </div>
                   <button 
                     onClick={() => setActiveTab('profile')}
-                    className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-800 transition-all shadow-xl active:scale-95"
+                    className="relative group/btn overflow-hidden px-10 py-5 bg-white text-indigo-950 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-slate-50 transition-all shadow-2xl shadow-black/40 active:scale-95"
                   >
-                    Verify Profile
+                    <span className="relative z-10">Verify Profile</span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-400/20 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
                   </button>
                 </div>
               </div>
+         </div>
 
               {/* NEWS FEED SECTION */}
               {isFeedEnabled && (
