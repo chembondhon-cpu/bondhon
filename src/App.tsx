@@ -3244,12 +3244,7 @@ create policy "bookmarks_owner" on bookmarks for all using (auth.uid() = user_id
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.3, delay: Math.min(idx * 0.05, 0.3) }}
                   className="glass-card flex flex-col rounded-[2.5rem] premium-shadow premium-hover overflow-hidden group cursor-pointer relative bg-white border border-slate-200/50"
-                  onClick={() => {
-                    if (teacher.phone) {
-                      const confirmCall = window.confirm(`Call ${teacher.name} at ${teacher.phone}?`);
-                      if (confirmCall) window.location.href = `tel:${teacher.phone}`;
-                    }
-                  }}
+                  onClick={() => setSelectedTeacher(teacher)}
                 >
                   {/* Card Header Background */}
                   <div className="h-28 w-full bg-[#1e3a8a] relative overflow-hidden shrink-0">
